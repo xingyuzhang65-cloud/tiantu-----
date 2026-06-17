@@ -47,7 +47,12 @@ export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProp
               <button
                 key={item.name}
                 id={`rail-item-${item.name}`}
-                onClick={() => setActiveRail(item.name)}
+                onClick={() => {
+                  setActiveRail(item.name);
+                  if (item.name === '配置') {
+                    onSubViewChange('贸易方式配置');
+                  }
+                }}
                 className={`group flex w-full flex-col items-center justify-center py-2 transition-all duration-150 relative ${
                   isActive 
                     ? 'text-white font-medium bg-slate-800' 

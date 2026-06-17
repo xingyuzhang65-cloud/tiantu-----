@@ -4,6 +4,7 @@ import Header from './components/Header';
 import TableSection from './components/TableSection';
 import CreateModal from './components/CreateModal';
 import NotificationToast, { ToastMessage } from './components/NotificationToast';
+import RuleConfigPage from './components/RuleConfigPage';
 import { Waybill, OrderType } from './types';
 import { Settings, HelpCircle, Layers, ShieldCheck, Mail, Phone, Calendar } from 'lucide-react';
 
@@ -290,7 +291,7 @@ export default function App() {
 
         {/* Inner page router/view switch by Tabs */}
         {currentTab === '运单' || currentTab === '跟单运单' || currentTab === '业务运单' ? (
-          <TableSection 
+          <TableSection
             waybills={waybills}
             onAddWaybillClick={(orderType: OrderType) => {
               setModalOrderType(orderType);
@@ -302,6 +303,8 @@ export default function App() {
             onUpdateWaybill={handleUpdateWaybill}
             addToast={addToast}
           />
+        ) : currentTab === '贸易方式配置' ? (
+          <RuleConfigPage addToast={addToast} />
         ) : (
           /* General Constant Parameter manager and settings views */
           <div className="flex-1 p-6 overflow-y-auto space-y-6">

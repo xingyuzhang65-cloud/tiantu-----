@@ -1,10 +1,28 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  X, Plus, Minus, FileSpreadsheet, UploadCloud, Info, 
-  Sparkles, BrainCircuit, CheckCircle2, Loader2, FileText, Image, ArrowRight 
+import {
+  X, Plus, Minus, FileSpreadsheet, UploadCloud, Info,
+  Sparkles, BrainCircuit, CheckCircle2, Loader2, FileText, Image, ArrowRight
 } from 'lucide-react';
 import { Waybill, SidebarTab, OrderType } from '../types';
 import AiInvoicePage from './AiInvoicePage';
+
+// Station & Service name → code mapping for API
+const STATION_NAME_TO_CODE: Record<string, string> = {
+  '深圳天图货站': 'sz_tiantu',
+  '上海分拨货站': 'shanghai_distribution',
+  '塘厦仓': 'tangxia',
+  '东莞塘厦分中心': 'dongguan_tangxia',
+  '义乌中转营地': 'yiwu_transfer',
+};
+
+const SERVICE_NAME_TO_CODE: Record<string, string> = {
+  '美国21日达': 'us_21day',
+  '海德运通': 'haide_express',
+  '美森尊卡限时达': 'matson_vip',
+  '常润空快3日卡': 'changrun_air',
+  '卡派高派拼箱': 'lcl_direct',
+  '深圳天图海派专线': 'sz_tiantu_sea',
+};
 
 interface CreateModalProps {
   onClose: () => void;
@@ -64,7 +82,57 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
   // Form errors
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const shouldShowCustomsDeclaration = false;
-  const shouldShowTradeMode = false;
+
+  // ─── Dynamic Trade Mode Validation ────────────────────────────────────────
+  const [tradeModeRequired, setTradeModeRequired] = useState(false);
+  const [matchedRuleName, setMatchedRuleName] = useState<string | null>(null);
+  const shouldShowTradeMode = tradeModeRequired;
+
+  // Watch station + service changes → check if trade mode is required
+  useEffect(() => {
+    if (!deliveryStation || !service) {
+      setTradeModeRequired(false);
+      setMatchedRuleName(null);
+      if (!tradeModeRequired && errors.tradeMode) {
+        setErrors(prev => { const { tradeMode, ...rest } = prev; return rest; });
+      }
+      return;
+    }
+
+    const stationCode = STATION_NAME_TO_CODE[deliveryStation];
+    const serviceCode = SERVICE_NAME_TO_CODE[service];
+
+    if (!stationCode || !serviceCode) {
+      setTradeModeRequired(false);
+      setMatchedRuleName(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    fetch('/api/check-trade-mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stationCode, serviceCode }),
+    })
+      .then(res => res.json())
+      .then(json => {
+        if (cancelled) return;
+        if (json.success) {
+          setTradeModeRequired(json.data.isRequired);
+          setMatchedRuleName(json.data.matchedRuleName || null);
+          // Clear error when trade mode becomes non-required
+          if (!json.data.isRequired && errors.tradeMode) {
+            setErrors(prev => { const { tradeMode, ...rest } = prev; return rest; });
+          }
+        }
+      })
+      .catch(() => {
+        // API offline — no opinion
+      });
+
+    return () => { cancelled = true; };
+  }, [deliveryStation, service]);
 
   useEffect(() => {
     if (!shouldShowCustomsDeclaration && customsDeclarationType) {
@@ -103,6 +171,9 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
     if (!customerOrderNo) newErrors.customerOrderNo = '请输入客户单号';
     if (!country) newErrors.country = '请选择国家或地区';
     if (!service) newErrors.service = '请选择服务类型';
+    if (tradeModeRequired && !tradeMode) {
+      newErrors.tradeMode = `根据规则"${matchedRuleName}"，贸易方式为必填项`;
+    }
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       addToast('请完善当前多票单据的必填项！', 'warning');
@@ -247,6 +318,9 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
     if (!customerOrderNo) newErrors.customerOrderNo = '请输入客户单号';
     if (!country) newErrors.country = '请选择国家或地区';
     if (!service) newErrors.service = '请选择服务类型';
+    if (tradeModeRequired && !tradeMode) {
+      newErrors.tradeMode = `根据规则"${matchedRuleName}"，贸易方式为必填项`;
+    }
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       addToast('请完善带标 * 的必填栏目信息', 'warning');
@@ -279,7 +353,7 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
       remarks: remarks,
       customerName: customer,
       customsDeclarationType: undefined,
-      tradeMode: undefined,
+      tradeMode: tradeMode || undefined,
     };
 
     onSave(newWaybill);
@@ -789,6 +863,11 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
                       <div className="relative">
                         <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                           <span className="text-red-500 mr-1">*</span>贸易方式
+                          {matchedRuleName && (
+                            <span className="ml-1 text-[10px] font-normal text-blue-500">
+                              （规则: {matchedRuleName}）
+                            </span>
+                          )}
                         </label>
                         <select
                           id="select-trade-mode"
@@ -808,7 +887,14 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
                           <option value="0110">0110</option>
                           <option value="1039">1039</option>
                         </select>
-                        {errors.tradeMode && <span className="absolute text-[9px] text-red-500 -bottom-3.5 left-0">{errors.tradeMode}</span>}
+                        {errors.tradeMode && (
+                          <span className="absolute text-[9px] text-red-500 -bottom-3.5 left-0">{errors.tradeMode}</span>
+                        )}
+                        {!errors.tradeMode && matchedRuleName && (
+                          <span className="text-[9px] text-blue-400 mt-0.5 block">
+                            📋 匹配校验规则，必须填写贸易方式
+                          </span>
+                        )}
                       </div>
                     )}
 

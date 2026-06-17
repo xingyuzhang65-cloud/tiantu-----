@@ -149,6 +149,223 @@ app.post("/api/parse-invoice", async (req: express.Request, res: express.Respons
   }
 });
 
+// ─── In-Memory Storage for Trade Mode Rules ──────────────────────────────────
+interface TradeModeRule {
+  id: number;
+  ruleName: string;
+  isAllStation: boolean;
+  isAllService: boolean;
+  isRequired: boolean;
+  status: boolean;
+  stationCodes: string[];
+  serviceCodes: string[];
+  createTime: string;
+  updateTime: string;
+}
+
+let ruleIdCounter = 1;
+const tradeModeRules: TradeModeRule[] = [];
+
+function now(): string {
+  return new Date().toISOString().slice(0, 19).replace("T", " ");
+}
+
+// Get all rules (with optional filters)
+app.get("/api/trade-mode-rules", (req: express.Request, res: express.Response) => {
+  const { stationCode, serviceCode, status } = req.query;
+  let result = [...tradeModeRules];
+
+  if (status !== undefined && status !== "") {
+    const statusBool = status === "1" || status === "true";
+    result = result.filter(r => r.status === statusBool);
+  }
+  if (stationCode) {
+    result = result.filter(r =>
+      r.isAllStation || r.stationCodes.includes(stationCode as string)
+    );
+  }
+  if (serviceCode) {
+    result = result.filter(r =>
+      r.isAllService || r.serviceCodes.includes(serviceCode as string)
+    );
+  }
+
+  return res.json({ success: true, data: result });
+});
+
+// Create a new rule
+app.post("/api/trade-mode-rules", (req: express.Request, res: express.Response): any => {
+  const { ruleName, isAllStation, isAllService, isRequired, status, stationCodes, serviceCodes } = req.body;
+
+  if (!ruleName || !ruleName.trim()) {
+    return res.status(400).json({ success: false, message: "规则名称不能为空" });
+  }
+  if (ruleName.length > 50) {
+    return res.status(400).json({ success: false, message: "规则名称不能超过50个字符" });
+  }
+  if (isRequired === undefined) {
+    return res.status(400).json({ success: false, message: "请选择贸易方式是否必填" });
+  }
+  if (!isAllStation && (!stationCodes || stationCodes.length === 0)) {
+    return res.status(400).json({ success: false, message: "请至少选择一个送货货站" });
+  }
+  if (!isAllService && (!serviceCodes || serviceCodes.length === 0)) {
+    return res.status(400).json({ success: false, message: "请至少选择一个服务类型" });
+  }
+
+  // Anti-duplicate: check for existing enabled rule with overlapping [station + service] combo
+  if (status !== false) {
+    const conflict = tradeModeRules.find(r => {
+      if (!r.status) return false; // skip disabled
+      // Check station overlap
+      const stationOverlap = r.isAllStation || isAllStation ||
+        r.stationCodes.some((sc: string) => (stationCodes || []).includes(sc));
+      // Check service overlap
+      const serviceOverlap = r.isAllService || isAllService ||
+        r.serviceCodes.some((sc: string) => (serviceCodes || []).includes(sc));
+      return stationOverlap && serviceOverlap;
+    });
+    if (conflict) {
+      return res.status(409).json({
+        success: false,
+        message: `该货站与服务组合已被规则 [${conflict.ruleName}] 占用`
+      });
+    }
+  }
+
+  const timestamp = now();
+  const newRule: TradeModeRule = {
+    id: ruleIdCounter++,
+    ruleName: ruleName.trim(),
+    isAllStation: !!isAllStation,
+    isAllService: !!isAllService,
+    isRequired: !!isRequired,
+    status: status !== false,
+    stationCodes: isAllStation ? [] : (stationCodes || []),
+    serviceCodes: isAllService ? [] : (serviceCodes || []),
+    createTime: timestamp,
+    updateTime: timestamp,
+  };
+
+  tradeModeRules.push(newRule);
+  return res.json({ success: true, data: newRule });
+});
+
+// Update an existing rule
+app.put("/api/trade-mode-rules/:id", (req: express.Request, res: express.Response): any => {
+  const id = parseInt(req.params.id);
+  const rule = tradeModeRules.find(r => r.id === id);
+  if (!rule) {
+    return res.status(404).json({ success: false, message: "规则未找到" });
+  }
+
+  const { ruleName, isAllStation, isAllService, isRequired, status, stationCodes, serviceCodes } = req.body;
+
+  if (ruleName !== undefined) {
+    if (!ruleName.trim()) {
+      return res.status(400).json({ success: false, message: "规则名称不能为空" });
+    }
+    if (ruleName.length > 50) {
+      return res.status(400).json({ success: false, message: "规则名称不能超过50个字符" });
+    }
+  }
+
+  const resolvedIsAllStation = isAllStation !== undefined ? !!isAllStation : rule.isAllStation;
+  const resolvedIsAllService = isAllService !== undefined ? !!isAllService : rule.isAllService;
+  const resolvedStationCodes = resolvedIsAllStation ? [] : (stationCodes !== undefined ? stationCodes : rule.stationCodes);
+  const resolvedServiceCodes = resolvedIsAllService ? [] : (serviceCodes !== undefined ? serviceCodes : rule.serviceCodes);
+
+  if (!resolvedIsAllStation && resolvedStationCodes.length === 0) {
+    return res.status(400).json({ success: false, message: "请至少选择一个送货货站" });
+  }
+  if (!resolvedIsAllService && resolvedServiceCodes.length === 0) {
+    return res.status(400).json({ success: false, message: "请至少选择一个服务类型" });
+  }
+
+  const resolvedStatus = status !== undefined ? (status !== false) : rule.status;
+
+  // Anti-duplicate check (exclude self)
+  if (resolvedStatus) {
+    const conflict = tradeModeRules.find(r => {
+      if (r.id === id) return false;
+      if (!r.status) return false;
+      const stationOverlap = r.isAllStation || resolvedIsAllStation ||
+        r.stationCodes.some((sc: string) => resolvedStationCodes.includes(sc));
+      const serviceOverlap = r.isAllService || resolvedIsAllService ||
+        r.serviceCodes.some((sc: string) => resolvedServiceCodes.includes(sc));
+      return stationOverlap && serviceOverlap;
+    });
+    if (conflict) {
+      return res.status(409).json({
+        success: false,
+        message: `该货站与服务组合已被规则 [${conflict.ruleName}] 占用`
+      });
+    }
+  }
+
+  if (ruleName !== undefined) rule.ruleName = ruleName.trim();
+  rule.isAllStation = resolvedIsAllStation;
+  rule.isAllService = resolvedIsAllService;
+  rule.stationCodes = resolvedStationCodes;
+  rule.serviceCodes = resolvedServiceCodes;
+  if (isRequired !== undefined) rule.isRequired = !!isRequired;
+  rule.status = resolvedStatus;
+  rule.updateTime = now();
+
+  return res.json({ success: true, data: rule });
+});
+
+// Delete a single rule
+app.delete("/api/trade-mode-rules/:id", (req: express.Request, res: express.Response): any => {
+  const id = parseInt(req.params.id);
+  const index = tradeModeRules.findIndex(r => r.id === id);
+  if (index === -1) {
+    return res.status(404).json({ success: false, message: "规则未找到" });
+  }
+  tradeModeRules.splice(index, 1);
+  return res.json({ success: true, message: "规则已删除" });
+});
+
+// Batch delete rules
+app.delete("/api/trade-mode-rules", (req: express.Request, res: express.Response): any => {
+  const { ids } = req.body;
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ success: false, message: "请提供要删除的规则ID列表" });
+  }
+  for (const id of ids) {
+    const index = tradeModeRules.findIndex(r => r.id === id);
+    if (index !== -1) tradeModeRules.splice(index, 1);
+  }
+  return res.json({ success: true, message: `已批量删除 ${ids.length} 条规则` });
+});
+
+// Dynamic check: whether trade mode is required for a given station + service combo
+app.post("/api/check-trade-mode", (req: express.Request, res: express.Response) => {
+  const { stationCode, serviceCode } = req.body;
+
+  if (!stationCode || !serviceCode) {
+    return res.status(400).json({ success: false, message: "stationCode 和 serviceCode 不能为空" });
+  }
+
+  // Find the most recent matching enabled rule
+  const matchedRule = [...tradeModeRules]
+    .reverse() // newest first
+    .find(r => {
+      if (!r.status) return false;
+      const stationMatch = r.isAllStation || r.stationCodes.includes(stationCode);
+      const serviceMatch = r.isAllService || r.serviceCodes.includes(serviceCode);
+      return stationMatch && serviceMatch;
+    });
+
+  return res.json({
+    success: true,
+    data: {
+      isRequired: matchedRule ? matchedRule.isRequired : false,
+      matchedRuleName: matchedRule ? matchedRule.ruleName : undefined,
+    }
+  });
+});
+
 // Configure Vite middleware or Static files
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
