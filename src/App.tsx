@@ -14,8 +14,8 @@ export default function App() {
   const [currentSubView, setCurrentSubView] = useState<string>('运单');
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>('塘厦仓');
 
-  // Modal open by default to mirror screensht precisely, user can cancel it
-  const [isCreateOpen, setIsCreateOpen] = useState<boolean>(true);
+  // Keep the waybill list as the default landing view after refresh.
+  const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
   const [modalOrderType, setModalOrderType] = useState<OrderType>('快捷下单');
 
   // Active Toast list
@@ -49,7 +49,9 @@ export default function App() {
       country: '美国',
       insurance: true,
       remarks: '请尽快核对随箱发票',
-      customerName: '深圳天图电子有限公司 (VIP)'
+      customerName: '深圳天图电子有限公司 (VIP)',
+      customsDeclarationType: '报关退税',
+      tradeMode: '9610'
     },
     {
       id: 'HD2606161099',
@@ -67,7 +69,9 @@ export default function App() {
       country: '美国',
       insurance: false,
       remarks: '带锂电池产品',
-      customerName: '付豪跨境电商事业群'
+      customerName: '付豪跨境电商事业群',
+      customsDeclarationType: '托管报关',
+      tradeMode: '9710'
     },
     {
       id: 'HD2606162231',
@@ -85,7 +89,9 @@ export default function App() {
       country: '英国',
       insurance: true,
       remarks: '品名: 蓝牙耳机充电仓',
-      customerName: '深圳天图电子有限公司 (VIP)'
+      customerName: '深圳天图电子有限公司 (VIP)',
+      customsDeclarationType: '报关退税',
+      tradeMode: '9810'
     },
     {
       id: 'HD2606163345',
@@ -103,7 +109,9 @@ export default function App() {
       country: '德国',
       insurance: false,
       remarks: '纸箱尺寸 40*40*50',
-      customerName: '常晟供应链集团'
+      customerName: '常晟供应链集团',
+      customsDeclarationType: '报关退税',
+      tradeMode: '0110'
     },
     {
       id: 'HD2606164412',
@@ -121,7 +129,9 @@ export default function App() {
       country: '美国',
       insurance: true,
       remarks: '2个托盘缠拉伸膜',
-      customerName: '上海豪迅美中快递中心'
+      customerName: '上海豪迅美中快递中心',
+      customsDeclarationType: '托管报关',
+      tradeMode: '1039'
     },
     {
       id: 'HD2606158812',
@@ -139,7 +149,65 @@ export default function App() {
       country: '美国',
       insurance: true,
       remarks: '后补清关要素',
-      customerName: '英国海航直运有限公司'
+      customerName: '英国海航直运有限公司',
+      customsDeclarationType: '报关退税',
+      tradeMode: '9610'
+    },
+    {
+      id: 'HD2606157720',
+      fbaCode: 'FBA25Q1A8L2N',
+      description: '资料待补齐，贸易方式未确认',
+      createTime: '2026-06-15 14:08:19',
+      pickupTime: '未揽收',
+      groupCode: 'USSZ202606157720',
+      carrier: '美国21日达',
+      zipCode: '91752-ONT8',
+      station: '塘厦仓',
+      customerType: '普通客户',
+      status: '待揽收',
+      packagesCount: 6,
+      country: '美国',
+      insurance: false,
+      remarks: '客户暂未提交报关贸易方式',
+      customerName: '东莞跨境贸易样品客户',
+      customsDeclarationType: '报关退税'
+    },
+    {
+      id: 'HD2606156638',
+      fbaCode: 'FBA26B7C2M9P',
+      description: '托管资料审核中',
+      createTime: '2026-06-15 10:36:42',
+      pickupTime: '2026-06-15 12:05:18',
+      groupCode: 'USSZ202606156638',
+      carrier: '美森尊卡限时达',
+      zipCode: '90001-LAX',
+      station: '深圳天图货站',
+      customerType: '基础价格',
+      status: '转运中',
+      packagesCount: 9,
+      country: '美国',
+      insurance: true,
+      remarks: '旧单迁移，贸易方式为空',
+      customerName: '深圳星链家居出口部',
+      customsDeclarationType: '托管报关'
+    },
+    {
+      id: 'HD2606145526',
+      fbaCode: 'FBA27N4R6T8V',
+      description: '欧洲线普货待补申报',
+      createTime: '2026-06-14 17:22:08',
+      pickupTime: '2026-06-14 18:40:30',
+      groupCode: 'USSZ202606145526',
+      carrier: '卡派高派拼箱',
+      zipCode: '80331-MUC',
+      station: '上海分拨货站',
+      customerType: 'vip',
+      status: '已收货',
+      packagesCount: 18,
+      country: '德国',
+      insurance: false,
+      remarks: '历史导入数据未带贸易方式字段',
+      customerName: '上海欧线供应链客户'
     }
   ]);
 
@@ -187,6 +255,10 @@ export default function App() {
     }));
   };
 
+  const handleUpdateWaybill = (id: string, patch: Partial<Waybill>) => {
+    setWaybills(prev => prev.map(w => (w.id === id ? { ...w, ...patch } : w)));
+  };
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-100">
       
@@ -227,6 +299,7 @@ export default function App() {
             }}
             onDeleteWaybills={handleDeleteWaybills}
             onUpdateWaybillStatus={handleUpdateWaybillStatus}
+            onUpdateWaybill={handleUpdateWaybill}
             addToast={addToast}
           />
         ) : (

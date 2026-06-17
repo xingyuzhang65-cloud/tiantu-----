@@ -14,7 +14,7 @@ interface ToastListProps {
 
 export default function NotificationToast({ toasts, removeToast }: ToastListProps) {
   return (
-    <div className="fixed right-4 top-4 z-50 flex flex-col gap-2 w-full max-w-sm pointer-events-none">
+    <div className="fixed left-1/2 top-4 z-[80] flex w-full max-w-sm -translate-x-1/2 flex-col gap-2 pointer-events-none">
       {toasts.map((t) => (
         <ToastItem key={t.id} toast={t} remove={removeToast} />
       ))}

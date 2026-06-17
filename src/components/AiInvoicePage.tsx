@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   ArrowLeft, UploadCloud, Plus, Minus, CheckCircle2, 
   Loader2, FileSpreadsheet, Trash2, ArrowRight
@@ -54,6 +54,7 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
   const [hasMagnet, setHasMagnet] = useState('');
   const [taxPayment, setTaxPayment] = useState('');
   const [declarationType, setDeclarationType] = useState('');
+  const [tradeMode, setTradeMode] = useState('');
   const [clearanceType, setClearanceType] = useState('');
   const [vatNo, setVatNo] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -74,6 +75,21 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
   const [isParsing, setIsParsing] = useState(false);
   const [parsingStep, setParsingStep] = useState('');
   const [fileName, setFileName] = useState<string | null>(null);
+  const shouldShowCustomsDeclaration =
+    (deliveryStation === '塘厦仓' || deliveryStation === '东莞塘厦分中心') && service === '美国21日达';
+  const shouldShowTradeMode = shouldShowCustomsDeclaration && declarationType === '报关退税';
+
+  useEffect(() => {
+    if (!shouldShowCustomsDeclaration && declarationType) {
+      setDeclarationType('');
+    }
+  }, [shouldShowCustomsDeclaration, declarationType]);
+
+  useEffect(() => {
+    if (!shouldShowTradeMode && tradeMode) {
+      setTradeMode('');
+    }
+  }, [shouldShowTradeMode, tradeMode]);
 
   // Auto calculate export value from items total
   const recalculateExportValue = (rows: CargoRow[]) => {
@@ -211,6 +227,15 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
   };
 
   const handleOrderSubmit = () => {
+    if (shouldShowCustomsDeclaration && !declarationType) {
+      addToast('请选择报关方式', 'warning');
+      return;
+    }
+    if (shouldShowTradeMode && !tradeMode) {
+      addToast('请选择贸易方式', 'warning');
+      return;
+    }
+
     const validRows = cargoRows.filter(r => r.chineseName && r.quantity > 0);
     if (validRows.length === 0) {
       addToast('请至少填写多箱申报清单中的一票货物名称及数量！', 'warning');
@@ -236,8 +261,11 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
         country: receiverCountry || '美国',
         orderWeek: deliveryWeek || '2026-W25',
         insurance: true,
+        hasUploadedInvoice: true,
         remarks: `发票解析单 ${customerOrderNo}. 材质: ${row.material}. 备注: ${remarks}`,
-        customerName: customer || '付豪跨境电商事业群'
+        customerName: customer || '付豪跨境电商事业群',
+        customsDeclarationType: shouldShowCustomsDeclaration ? declarationType : undefined,
+        tradeMode: shouldShowTradeMode ? tradeMode : undefined
       };
     });
 
@@ -362,6 +390,7 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
               <option value="">请选择送货货站</option>
               <option value="深圳天图货站">深圳天图货站</option>
               <option value="上海分拨货站">上海分拨货站</option>
+              <option value="塘厦仓">塘厦仓</option>
               <option value="东莞塘厦分中心">东莞塘厦分中心</option>
               <option value="义乌中转营地">义乌中转营地</option>
             </select>
@@ -390,6 +419,7 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
               className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
             >
               <option value="">请选择</option>
+              <option value="美国21日达">美国21日达</option>
               <option value="美森尊卡限时达">美森尊卡限时达</option>
               <option value="海德运通">海德运通</option>
               <option value="常润空快3日卡">常润空快3日卡</option>
@@ -659,20 +689,42 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
             </select>
           </div>
 
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-              <span className="text-red-500 mr-0.5">*</span>报关方式
-            </label>
-            <select
-              value={declarationType}
-              onChange={(e) => setDeclarationType(e.target.value)}
-              className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
-            >
-              <option value="">请选择</option>
-              <option value="一般贸易报关">一般贸易报关</option>
-              <option value="买单报关">买单报关</option>
-            </select>
-          </div>
+          {shouldShowCustomsDeclaration && (
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                <span className="text-red-500 mr-0.5">*</span>报关方式
+              </label>
+              <select
+                value={declarationType}
+                onChange={(e) => setDeclarationType(e.target.value)}
+                className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              >
+                <option value="">请选择</option>
+                <option value="报关退税">报关退税</option>
+                <option value="托管报关">托管报关</option>
+              </select>
+            </div>
+          )}
+
+          {shouldShowTradeMode && (
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                <span className="text-red-500 mr-0.5">*</span>贸易方式
+              </label>
+              <select
+                value={tradeMode}
+                onChange={(e) => setTradeMode(e.target.value)}
+                className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              >
+                <option value="">请选择</option>
+                <option value="9610">9610</option>
+                <option value="9710">9710</option>
+                <option value="9810">9810</option>
+                <option value="0110">0110</option>
+                <option value="1039">1039</option>
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="block text-[11px] font-semibold text-slate-600 mb-1">

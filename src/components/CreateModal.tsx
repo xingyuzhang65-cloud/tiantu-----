@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   X, Plus, Minus, FileSpreadsheet, UploadCloud, Info, 
   Sparkles, BrainCircuit, CheckCircle2, Loader2, FileText, Image, ArrowRight 
@@ -27,6 +27,8 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
   const [packagesCount, setPackagesCount] = useState<number>(1);
   const [country, setCountry] = useState('');
   const [service, setService] = useState('');
+  const [customsDeclarationType, setCustomsDeclarationType] = useState('');
+  const [tradeMode, setTradeMode] = useState('');
   const [expectedWeek, setExpectedWeek] = useState('');
   const [buyInspection, setBuyInspection] = useState<boolean>(false);
   const [remarks, setRemarks] = useState('');
@@ -61,6 +63,26 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
 
   // Form errors
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const shouldShowCustomsDeclaration = false;
+  const shouldShowTradeMode = false;
+
+  useEffect(() => {
+    if (!shouldShowCustomsDeclaration && customsDeclarationType) {
+      setCustomsDeclarationType('');
+    }
+    if (!shouldShowCustomsDeclaration && errors.customsDeclarationType) {
+      setErrors(prev => {
+        const { customsDeclarationType: _customsDeclarationType, ...rest } = prev;
+        return rest;
+      });
+    }
+  }, [shouldShowCustomsDeclaration, customsDeclarationType, errors.customsDeclarationType]);
+
+  useEffect(() => {
+    if (!shouldShowTradeMode && tradeMode) {
+      setTradeMode('');
+    }
+  }, [shouldShowTradeMode, tradeMode]);
 
   // Counter helpers
   const increment = () => setPackagesCount(prev => prev + 1);
@@ -81,7 +103,6 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
     if (!customerOrderNo) newErrors.customerOrderNo = '请输入客户单号';
     if (!country) newErrors.country = '请选择国家或地区';
     if (!service) newErrors.service = '请选择服务类型';
-
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       addToast('请完善当前多票单据的必填项！', 'warning');
@@ -110,8 +131,11 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
       country: country,
       orderWeek: expectedWeek || '2026年第25周',
       insurance: buyInspection,
+      hasUploadedInvoice: false,
       remarks: remarks,
       customerName: customer,
+      customsDeclarationType: undefined,
+      tradeMode: undefined,
     };
 
     setMultiWaybills(prev => [...prev, waybillItem]);
@@ -122,6 +146,8 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
     setCustomerOrderNo(`CUST${nextRand}`);
     setPackagesCount(1);
     setRemarks('');
+    setCustomsDeclarationType('');
+    setTradeMode('');
     setErrors({});
   };
 
@@ -168,6 +194,7 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
         country: '美国',
         orderWeek: '2026-W25',
         insurance: true,
+        hasUploadedInvoice: true,
         remarks: '通过 Excel 批量进架: ' + uploadedFile
       };
       onSave(newWaybill);
@@ -201,6 +228,7 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
         country: parsedDraft.country || '美国',
         orderWeek: '2026年第25周',
         insurance: true,
+        hasUploadedInvoice: true,
         remarks: parsedDraft.remarks,
         customerName: parsedDraft.customerName
       };
@@ -219,7 +247,6 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
     if (!customerOrderNo) newErrors.customerOrderNo = '请输入客户单号';
     if (!country) newErrors.country = '请选择国家或地区';
     if (!service) newErrors.service = '请选择服务类型';
-
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       addToast('请完善带标 * 的必填栏目信息', 'warning');
@@ -248,8 +275,11 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
       country: country,
       orderWeek: expectedWeek,
       insurance: buyInspection,
+      hasUploadedInvoice: false,
       remarks: remarks,
       customerName: customer,
+      customsDeclarationType: undefined,
+      tradeMode: undefined,
     };
 
     onSave(newWaybill);
@@ -590,6 +620,7 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
                         <option value="">请选择送货开单货站</option>
                         <option value="深圳天图货站">深圳天图货站</option>
                         <option value="上海分拨货站">上海分拨货站</option>
+                        <option value="塘厦仓">塘厦仓</option>
                         <option value="东莞塘厦分中心">东莞塘厦分中心</option>
                         <option value="义乌中转营地">义乌中转营地</option>
                       </select>
@@ -720,6 +751,7 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
                         }`}
                       >
                         <option value="">请选择服务类型</option>
+                        <option value="美国21日达">美国21日达</option>
                         <option value="海德运通">海德运通 (HT Express)</option>
                         <option value="美森尊卡限时达">美森尊卡限时达 (Matson VIP)</option>
                         <option value="常润空快3日卡">常润空快3日卡 (Air Fast)</option>
@@ -728,6 +760,57 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
                       </select>
                       {errors.service && <span className="absolute text-[9px] text-red-500 -bottom-3.5 left-0">{errors.service}</span>}
                     </div>
+
+                    {shouldShowCustomsDeclaration && (
+                      <div className="relative">
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          <span className="text-red-500 mr-1">*</span>报关方式
+                        </label>
+                        <select
+                          id="select-customs-declaration-type"
+                          value={customsDeclarationType}
+                          onChange={(e) => {
+                            setCustomsDeclarationType(e.target.value);
+                            if (errors.customsDeclarationType) setErrors(prev => ({ ...prev, customsDeclarationType: '' }));
+                          }}
+                          className={`w-full rounded-lg border bg-white px-3 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none ${
+                            errors.customsDeclarationType ? 'border-red-400' : 'border-slate-300'
+                          }`}
+                        >
+                          <option value="">请选择报关方式</option>
+                          <option value="报关退税">报关退税</option>
+                          <option value="托管报关">托管报关</option>
+                        </select>
+                        {errors.customsDeclarationType && <span className="absolute text-[9px] text-red-500 -bottom-3.5 left-0">{errors.customsDeclarationType}</span>}
+                      </div>
+                    )}
+
+                    {shouldShowTradeMode && (
+                      <div className="relative">
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          <span className="text-red-500 mr-1">*</span>贸易方式
+                        </label>
+                        <select
+                          id="select-trade-mode"
+                          value={tradeMode}
+                          onChange={(e) => {
+                            setTradeMode(e.target.value);
+                            if (errors.tradeMode) setErrors(prev => ({ ...prev, tradeMode: '' }));
+                          }}
+                          className={`w-full rounded-lg border bg-white px-3 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none ${
+                            errors.tradeMode ? 'border-red-400' : 'border-slate-300'
+                          }`}
+                        >
+                          <option value="">请选择贸易方式</option>
+                          <option value="9610">9610</option>
+                          <option value="9710">9710</option>
+                          <option value="9810">9810</option>
+                          <option value="0110">0110</option>
+                          <option value="1039">1039</option>
+                        </select>
+                        {errors.tradeMode && <span className="absolute text-[9px] text-red-500 -bottom-3.5 left-0">{errors.tradeMode}</span>}
+                      </div>
+                    )}
 
                     {/* Estimated week */}
                     <div>
@@ -817,7 +900,7 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
 
                     {/* Column Table Horizontal Form Header & Row Inputs */}
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[760px] text-xs text-left border-collapse">
+                      <table className="w-full min-w-[960px] text-xs text-left border-collapse">
                         <thead>
                           <tr className="text-slate-500 font-semibold select-none border-b border-slate-100">
                             <th className="py-2 px-2 w-[15%]"><span className="text-red-500 mr-0.5">*</span>送货货站</th>
@@ -826,6 +909,12 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
                             <th className="py-2 px-2 w-[13%]"><span className="text-red-500 mr-0.5">*</span>件数</th>
                             <th className="py-2 px-2 w-[14%]"><span className="text-red-500 mr-0.5">*</span>国家或地区</th>
                             <th className="py-2 px-2 w-[15%]"><span className="text-red-500 mr-0.5">*</span>服务</th>
+                            {shouldShowCustomsDeclaration && (
+                              <th className="py-2 px-2 w-[13%]"><span className="text-red-500 mr-0.5">*</span>报关方式</th>
+                            )}
+                            {shouldShowTradeMode && (
+                              <th className="py-2 px-2 w-[11%]"><span className="text-red-500 mr-0.5">*</span>贸易方式</th>
+                            )}
                             <th className="py-2 px-2 w-[10%]">预计送达周</th>
                           </tr>
                         </thead>
@@ -846,6 +935,7 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
                                 <option value="">请选择</option>
                                 <option value="深圳天图货站">深圳天图货站</option>
                                 <option value="上海分拨货站">上海分拨货站</option>
+                                <option value="塘厦仓">塘厦仓</option>
                                 <option value="东莞塘厦分中心">东莞塘厦分中心</option>
                                 <option value="义乌中转营地">义乌中转营地</option>
                               </select>
@@ -951,6 +1041,7 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
                                 }`}
                               >
                                 <option value="">请选择</option>
+                                <option value="美国21日达">美国21日达</option>
                                 <option value="海德运通">海德运通 (HT Express)</option>
                                 <option value="美森尊卡限时达">美森尊卡限时达</option>
                                 <option value="常润空快3日卡">常润空快3日卡</option>
@@ -958,6 +1049,47 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
                                 <option value="深圳天图海派专线">深圳天图海派专线</option>
                               </select>
                             </td>
+
+                            {shouldShowCustomsDeclaration && (
+                              <td className="p-1.5">
+                                <select
+                                  value={customsDeclarationType}
+                                  onChange={(e) => {
+                                    setCustomsDeclarationType(e.target.value);
+                                    if (errors.customsDeclarationType) setErrors(prev => ({ ...prev, customsDeclarationType: '' }));
+                                  }}
+                                  className={`w-full bg-slate-50 border rounded px-1.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 ${
+                                    errors.customsDeclarationType ? 'border-red-400 bg-red-50/20' : 'border-slate-300'
+                                  }`}
+                                >
+                                  <option value="">请选择</option>
+                                  <option value="报关退税">报关退税</option>
+                                  <option value="托管报关">托管报关</option>
+                                </select>
+                              </td>
+                            )}
+
+                            {shouldShowTradeMode && (
+                              <td className="p-1.5">
+                                <select
+                                  value={tradeMode}
+                                  onChange={(e) => {
+                                    setTradeMode(e.target.value);
+                                    if (errors.tradeMode) setErrors(prev => ({ ...prev, tradeMode: '' }));
+                                  }}
+                                  className={`w-full bg-slate-50 border rounded px-1.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 ${
+                                    errors.tradeMode ? 'border-red-400 bg-red-50/20' : 'border-slate-300'
+                                  }`}
+                                >
+                                  <option value="">请选择</option>
+                                  <option value="9610">9610</option>
+                                  <option value="9710">9710</option>
+                                  <option value="9810">9810</option>
+                                  <option value="0110">0110</option>
+                                  <option value="1039">1039</option>
+                                </select>
+                              </td>
+                            )}
 
                             {/* Estimated week selector */}
                             <td className="p-1.5">
@@ -1167,6 +1299,7 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
                     >
                       <option value="深圳天图货站">深圳天图货站</option>
                       <option value="上海分拨货站">上海分拨货站</option>
+                      <option value="塘厦仓">塘厦仓</option>
                       <option value="东莞塘厦分中心">东莞塘厦分中心</option>
                     </select>
                   </div>
@@ -1334,6 +1467,7 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
                       country: '美国',
                       orderWeek: expectedWeek || '2026年第25周',
                       insurance: buyInspection,
+                      hasUploadedInvoice: true,
                       remarks: `Excel录入. (模板: ${templateType})`,
                       customerName: customer || '付豪跨境电商事业群'
                     };

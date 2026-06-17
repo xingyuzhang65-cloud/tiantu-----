@@ -14,14 +14,47 @@ export interface Waybill {
   country: string;
   orderWeek?: string;
   insurance: boolean;
+  hasUploadedInvoice?: boolean;
   remarks?: string;
   customerName?: string;
+  customerOrderNo?: string;
+  consignee?: string;
+  warehouseCode?: string;
+  company?: string;
+  address1?: string;
+  address2?: string;
+  address3?: string;
+  city?: string;
+  state?: string;
+  phone?: string;
+  email?: string;
+  amazonReferenceId?: string;
+  associatedNo?: string;
+  delegatedPickup?: string;
+  combinedDeclaration?: string;
+  combinedClearance?: string;
+  poNumber?: string;
+  referenceNo1?: string;
+  referenceNo2?: string;
+  internalNote?: string;
+  taxMethod?: string;
+  clearanceMethod?: string;
+  vatNo?: string;
+  iossNo?: string;
+  eori?: string;
+  currency?: string;
+  itemAttributes?: string[];
+  buyInsurance?: boolean;
+  domesticInspection?: boolean;
+  customsDeclarationType?: string;
+  tradeMode?: string;
 }
 
 export interface SearchParams {
   keywords: string;
   groupCode: string;
   carrier: string;
+  tradeMode: string;
 }
 
 export type SidebarTab = '单票' | '多票';
