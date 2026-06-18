@@ -227,12 +227,16 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
   };
 
   const handleOrderSubmit = () => {
-    if (shouldShowCustomsDeclaration && !declarationType) {
+    if (!declarationType) {
       addToast('请选择报关方式', 'warning');
       return;
     }
-    if (shouldShowTradeMode && !tradeMode) {
+    if (!tradeMode) {
       addToast('请选择贸易方式', 'warning');
+      return;
+    }
+    if (!clearanceType) {
+      addToast('请选择清关方式', 'warning');
       return;
     }
 
@@ -264,8 +268,9 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
         hasUploadedInvoice: true,
         remarks: `发票解析单 ${customerOrderNo}. 材质: ${row.material}. 备注: ${remarks}`,
         customerName: customer || '付豪跨境电商事业群',
-        customsDeclarationType: shouldShowCustomsDeclaration ? declarationType : undefined,
-        tradeMode: shouldShowTradeMode ? tradeMode : undefined
+        customsDeclarationType: declarationType || undefined,
+        tradeMode: tradeMode || undefined,
+        clearanceType: clearanceType || undefined
       };
     });
 
@@ -688,46 +693,42 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
             </select>
           </div>
 
-          {shouldShowCustomsDeclaration && (
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                <span className="text-red-500 mr-0.5">*</span>报关方式
-              </label>
-              <select
-                value={declarationType}
-                onChange={(e) => setDeclarationType(e.target.value)}
-                className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
-              >
-                <option value="">请选择</option>
-                <option value="报关退税">报关退税</option>
-                <option value="托管报关">托管报关</option>
-              </select>
-            </div>
-          )}
-
-          {shouldShowTradeMode && (
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                <span className="text-red-500 mr-0.5">*</span>贸易方式
-              </label>
-              <select
-                value={tradeMode}
-                onChange={(e) => setTradeMode(e.target.value)}
-                className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
-              >
-                <option value="">请选择</option>
-                <option value="9610">9610</option>
-                <option value="9710">9710</option>
-                <option value="9810">9810</option>
-                <option value="0110">0110</option>
-                <option value="1039">1039</option>
-              </select>
-            </div>
-          )}
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+              <span className="text-red-500 mr-0.5">*</span>报关方式
+            </label>
+            <select
+              value={declarationType}
+              onChange={(e) => setDeclarationType(e.target.value)}
+              className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            >
+              <option value="">请选择</option>
+              <option value="报关退税">报关退税</option>
+              <option value="托管报关">托管报关</option>
+            </select>
+          </div>
 
           <div>
             <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-              清关方式
+              <span className="text-red-500 mr-0.5">*</span>贸易方式
+            </label>
+            <select
+              value={tradeMode}
+              onChange={(e) => setTradeMode(e.target.value)}
+              className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            >
+              <option value="">请选择</option>
+              <option value="9610">9610</option>
+              <option value="9710">9710</option>
+              <option value="9810">9810</option>
+              <option value="0110">0110</option>
+              <option value="1039">1039</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+              <span className="text-red-500 mr-0.5">*</span>清关方式
             </label>
             <select
               value={clearanceType}

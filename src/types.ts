@@ -48,6 +48,7 @@ export interface Waybill {
   domesticInspection?: boolean;
   customsDeclarationType?: string;
   tradeMode?: string;
+  clearanceType?: string;
 }
 
 export interface SearchParams {
