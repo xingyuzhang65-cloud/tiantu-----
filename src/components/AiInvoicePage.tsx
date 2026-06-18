@@ -76,7 +76,7 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
   const [parsingStep, setParsingStep] = useState('');
   const [fileName, setFileName] = useState<string | null>(null);
   const shouldShowCustomsDeclaration =
-    (deliveryStation === '塘厦仓' || deliveryStation === '东莞塘厦分中心') && service === '美国21日达';
+    (deliveryStation === '塘厦仓' || deliveryStation === '义乌仓') && service === '美线海卡';
   const shouldShowTradeMode = shouldShowCustomsDeclaration && declarationType === '报关退税';
 
   useEffect(() => {
@@ -156,9 +156,9 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
       // Simple pre-fill simulation sequence
       setTimeout(() => {
         setCustomer('付豪跨境电商事业群');
-        setDeliveryStation('深圳天图货站');
+        setDeliveryStation('塘厦仓');
         setDeliveryDate('2026-06-16');
-        setService('美森尊卡限时达');
+        setService('美线空派');
         setWarehouseCode('ONT8');
         setReceiverName('John Doe');
         setDeliveryWeek('2026年第25周');
@@ -252,9 +252,9 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
         createTime: new Date().toLocaleString().replace(/\//g, '-'),
         pickupTime: '未揽收',
         groupCode: `USSZ202606${Math.floor(100000 + Math.random() * 900000)}`,
-        carrier: service || '海德运通',
+        carrier: service || '美线海卡',
         zipCode: receiverZip || '85043-2356',
-        station: deliveryStation || '深圳天图货站',
+        station: deliveryStation || '塘厦仓',
         customerType: 'vip',
         status: '待揽收',
         packagesCount: 1,
@@ -388,11 +388,9 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
               className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
             >
               <option value="">请选择送货货站</option>
-              <option value="深圳天图货站">深圳天图货站</option>
-              <option value="上海分拨货站">上海分拨货站</option>
               <option value="塘厦仓">塘厦仓</option>
-              <option value="东莞塘厦分中心">东莞塘厦分中心</option>
-              <option value="义乌中转营地">义乌中转营地</option>
+              <option value="广州仓">广州仓</option>
+              <option value="义乌仓">义乌仓</option>
             </select>
           </div>
 
@@ -419,11 +417,12 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
               className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
             >
               <option value="">请选择</option>
-              <option value="美国21日达">美国21日达</option>
-              <option value="美森尊卡限时达">美森尊卡限时达</option>
-              <option value="海德运通">海德运通</option>
-              <option value="常润空快3日卡">常润空快3日卡</option>
-              <option value="卡派高派拼箱">卡派高派拼箱</option>
+              <option value="美线空派">美线空派</option>
+              <option value="美线海卡">美线海卡</option>
+              <option value="义乌天图">义乌天图</option>
+              <option value="英线海卡">英线海卡</option>
+              <option value="德线空派">德线空派</option>
+              <option value="日本快线">日本快线</option>
             </select>
           </div>
 

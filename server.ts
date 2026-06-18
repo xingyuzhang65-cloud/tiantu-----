@@ -152,13 +152,11 @@ app.post("/api/parse-invoice", async (req: express.Request, res: express.Respons
 // ─── In-Memory Storage for Trade Mode Rules ──────────────────────────────────
 interface TradeModeRule {
   id: number;
-  ruleName: string;
-  isAllStation: boolean;
-  isAllService: boolean;
-  isRequired: boolean;
-  status: boolean;
   stationCodes: string[];
   serviceCodes: string[];
+  isRequired: boolean;
+  status: boolean;
+  updateUser: string;
   createTime: string;
   updateTime: string;
 }
@@ -181,12 +179,12 @@ app.get("/api/trade-mode-rules", (req: express.Request, res: express.Response) =
   }
   if (stationCode) {
     result = result.filter(r =>
-      r.isAllStation || r.stationCodes.includes(stationCode as string)
+      r.stationCodes.includes(stationCode as string)
     );
   }
   if (serviceCode) {
     result = result.filter(r =>
-      r.isAllService || r.serviceCodes.includes(serviceCode as string)
+      r.serviceCodes.includes(serviceCode as string)
     );
   }
 
@@ -195,21 +193,15 @@ app.get("/api/trade-mode-rules", (req: express.Request, res: express.Response) =
 
 // Create a new rule
 app.post("/api/trade-mode-rules", (req: express.Request, res: express.Response): any => {
-  const { ruleName, isAllStation, isAllService, isRequired, status, stationCodes, serviceCodes } = req.body;
+  const { isRequired, status, stationCodes, serviceCodes, updateUser } = req.body;
 
-  if (!ruleName || !ruleName.trim()) {
-    return res.status(400).json({ success: false, message: "规则名称不能为空" });
-  }
-  if (ruleName.length > 50) {
-    return res.status(400).json({ success: false, message: "规则名称不能超过50个字符" });
-  }
   if (isRequired === undefined) {
     return res.status(400).json({ success: false, message: "请选择贸易方式是否必填" });
   }
-  if (!isAllStation && (!stationCodes || stationCodes.length === 0)) {
+  if (!stationCodes || stationCodes.length === 0) {
     return res.status(400).json({ success: false, message: "请至少选择一个送货货站" });
   }
-  if (!isAllService && (!serviceCodes || serviceCodes.length === 0)) {
+  if (!serviceCodes || serviceCodes.length === 0) {
     return res.status(400).json({ success: false, message: "请至少选择一个服务类型" });
   }
 
@@ -218,17 +210,15 @@ app.post("/api/trade-mode-rules", (req: express.Request, res: express.Response):
     const conflict = tradeModeRules.find(r => {
       if (!r.status) return false; // skip disabled
       // Check station overlap
-      const stationOverlap = r.isAllStation || isAllStation ||
-        r.stationCodes.some((sc: string) => (stationCodes || []).includes(sc));
+      const stationOverlap = r.stationCodes.some((sc: string) => (stationCodes || []).includes(sc));
       // Check service overlap
-      const serviceOverlap = r.isAllService || isAllService ||
-        r.serviceCodes.some((sc: string) => (serviceCodes || []).includes(sc));
+      const serviceOverlap = r.serviceCodes.some((sc: string) => (serviceCodes || []).includes(sc));
       return stationOverlap && serviceOverlap;
     });
     if (conflict) {
       return res.status(409).json({
         success: false,
-        message: `该货站与服务组合已被规则 [${conflict.ruleName}] 占用`
+        message: `该货站与服务组合已被已有规则占用`
       });
     }
   }
@@ -236,13 +226,11 @@ app.post("/api/trade-mode-rules", (req: express.Request, res: express.Response):
   const timestamp = now();
   const newRule: TradeModeRule = {
     id: ruleIdCounter++,
-    ruleName: ruleName.trim(),
-    isAllStation: !!isAllStation,
-    isAllService: !!isAllService,
     isRequired: !!isRequired,
     status: status !== false,
-    stationCodes: isAllStation ? [] : (stationCodes || []),
-    serviceCodes: isAllService ? [] : (serviceCodes || []),
+    stationCodes: stationCodes || [],
+    serviceCodes: serviceCodes || [],
+    updateUser: updateUser || '天朗（付豪）',
     createTime: timestamp,
     updateTime: timestamp,
   };
@@ -259,26 +247,15 @@ app.put("/api/trade-mode-rules/:id", (req: express.Request, res: express.Respons
     return res.status(404).json({ success: false, message: "规则未找到" });
   }
 
-  const { ruleName, isAllStation, isAllService, isRequired, status, stationCodes, serviceCodes } = req.body;
+  const { isRequired, status, stationCodes, serviceCodes, updateUser } = req.body;
 
-  if (ruleName !== undefined) {
-    if (!ruleName.trim()) {
-      return res.status(400).json({ success: false, message: "规则名称不能为空" });
-    }
-    if (ruleName.length > 50) {
-      return res.status(400).json({ success: false, message: "规则名称不能超过50个字符" });
-    }
-  }
+  const resolvedStationCodes = stationCodes !== undefined ? stationCodes : rule.stationCodes;
+  const resolvedServiceCodes = serviceCodes !== undefined ? serviceCodes : rule.serviceCodes;
 
-  const resolvedIsAllStation = isAllStation !== undefined ? !!isAllStation : rule.isAllStation;
-  const resolvedIsAllService = isAllService !== undefined ? !!isAllService : rule.isAllService;
-  const resolvedStationCodes = resolvedIsAllStation ? [] : (stationCodes !== undefined ? stationCodes : rule.stationCodes);
-  const resolvedServiceCodes = resolvedIsAllService ? [] : (serviceCodes !== undefined ? serviceCodes : rule.serviceCodes);
-
-  if (!resolvedIsAllStation && resolvedStationCodes.length === 0) {
+  if (resolvedStationCodes.length === 0) {
     return res.status(400).json({ success: false, message: "请至少选择一个送货货站" });
   }
-  if (!resolvedIsAllService && resolvedServiceCodes.length === 0) {
+  if (resolvedServiceCodes.length === 0) {
     return res.status(400).json({ success: false, message: "请至少选择一个服务类型" });
   }
 
@@ -289,27 +266,23 @@ app.put("/api/trade-mode-rules/:id", (req: express.Request, res: express.Respons
     const conflict = tradeModeRules.find(r => {
       if (r.id === id) return false;
       if (!r.status) return false;
-      const stationOverlap = r.isAllStation || resolvedIsAllStation ||
-        r.stationCodes.some((sc: string) => resolvedStationCodes.includes(sc));
-      const serviceOverlap = r.isAllService || resolvedIsAllService ||
-        r.serviceCodes.some((sc: string) => resolvedServiceCodes.includes(sc));
+      const stationOverlap = r.stationCodes.some((sc: string) => resolvedStationCodes.includes(sc));
+      const serviceOverlap = r.serviceCodes.some((sc: string) => resolvedServiceCodes.includes(sc));
       return stationOverlap && serviceOverlap;
     });
     if (conflict) {
       return res.status(409).json({
         success: false,
-        message: `该货站与服务组合已被规则 [${conflict.ruleName}] 占用`
+        message: `该货站与服务组合已被已有规则占用`
       });
     }
   }
 
-  if (ruleName !== undefined) rule.ruleName = ruleName.trim();
-  rule.isAllStation = resolvedIsAllStation;
-  rule.isAllService = resolvedIsAllService;
   rule.stationCodes = resolvedStationCodes;
   rule.serviceCodes = resolvedServiceCodes;
   if (isRequired !== undefined) rule.isRequired = !!isRequired;
   rule.status = resolvedStatus;
+  if (updateUser !== undefined) rule.updateUser = updateUser;
   rule.updateTime = now();
 
   return res.json({ success: true, data: rule });
@@ -352,8 +325,8 @@ app.post("/api/check-trade-mode", (req: express.Request, res: express.Response) 
     .reverse() // newest first
     .find(r => {
       if (!r.status) return false;
-      const stationMatch = r.isAllStation || r.stationCodes.includes(stationCode);
-      const serviceMatch = r.isAllService || r.serviceCodes.includes(serviceCode);
+      const stationMatch = r.stationCodes.includes(stationCode);
+      const serviceMatch = r.serviceCodes.includes(serviceCode);
       return stationMatch && serviceMatch;
     });
 
@@ -361,7 +334,6 @@ app.post("/api/check-trade-mode", (req: express.Request, res: express.Response) 
     success: true,
     data: {
       isRequired: matchedRule ? matchedRule.isRequired : false,
-      matchedRuleName: matchedRule ? matchedRule.ruleName : undefined,
     }
   });
 });

@@ -46,7 +46,7 @@ export default function Header({
     return () => clearInterval(interval);
   }, []);
 
-  const warehouseOptions = ['塘厦仓', '深圳总仓', '上海集货仓', '义乌中转仓'];
+  const warehouseOptions = ['塘厦仓', '广州仓', '义乌仓'];
 
   const simulatedNotifications = [
     { id: 1, text: '运单 FBA19G6M4C7B 货物已顺利进仓', time: '刚才', type: 'success' },

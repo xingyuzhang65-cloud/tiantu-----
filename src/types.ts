@@ -63,13 +63,11 @@ export type OrderType = '快捷下单' | 'excel导入下单' | '解析发票下�
 // ─── Trade Mode Rule Config Types ──────────────────────────────────────────────
 export interface TradeModeRule {
   id: number;
-  ruleName: string;
-  isAllStation: boolean;      // 是否适用全部货站
-  isAllService: boolean;      // 是否适用全部服务
+  stationCodes: string[];      // 关联的货站编码列表
+  serviceCodes: string[];      // 关联的服务编码列表
   isRequired: boolean;         // 贸易方式是否必填
   status: boolean;             // true:启用 false:禁用
-  stationCodes: string[];      // 关联的货站编码列表 (isAllStation=false时有效)
-  serviceCodes: string[];      // 关联的服务编码列表 (isAllService=false时有效)
+  updateUser: string;          // 更新人
   createTime: string;
   updateTime: string;
 }
@@ -84,23 +82,21 @@ export interface ServiceOption {
   name: string;
 }
 
-// Predefined station options matching existing waybill stations
+// Predefined station options
 export const STATION_OPTIONS: StationOption[] = [
-  { code: 'sz_tiantu', name: '深圳天图货站' },
-  { code: 'shanghai_distribution', name: '上海分拨货站' },
   { code: 'tangxia', name: '塘厦仓' },
-  { code: 'dongguan_tangxia', name: '东莞塘厦分中心' },
-  { code: 'yiwu_transfer', name: '义乌中转营地' },
+  { code: 'guangzhou', name: '广州仓' },
+  { code: 'yiwu', name: '义乌仓' },
 ];
 
-// Predefined service options matching existing carriers
+// Predefined service options
 export const SERVICE_OPTIONS: ServiceOption[] = [
-  { code: 'us_21day', name: '美国21日达' },
-  { code: 'haide_express', name: '海德运通' },
-  { code: 'matson_vip', name: '美森尊卡限时达' },
-  { code: 'changrun_air', name: '常润空快3日卡' },
-  { code: 'lcl_direct', name: '卡派高派拼箱' },
-  { code: 'sz_tiantu_sea', name: '深圳天图海派专线' },
+  { code: 'us_air_express', name: '美线空派' },
+  { code: 'us_sea_truck', name: '美线海卡' },
+  { code: 'yiwu_tiantu', name: '义乌天图' },
+  { code: 'uk_sea', name: '英线海卡' },
+  { code: 'de_air', name: '德线空派' },
+  { code: 'japan_express', name: '日本快线' },
 ];
 
 export interface TradeModeCheckRequest {

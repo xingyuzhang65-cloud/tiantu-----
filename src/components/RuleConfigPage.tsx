@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, RotateCcw, Plus, Trash2, PenLine, Check, X, ExternalLink } from 'lucide-react';
-import { TradeModeRule, StationOption, ServiceOption, STATION_OPTIONS, SERVICE_OPTIONS } from '../types';
+import { TradeModeRule, STATION_OPTIONS, SERVICE_OPTIONS } from '../types';
 import RuleFormModal from './RuleFormModal';
 
 interface RuleConfigPageProps {
@@ -17,8 +17,7 @@ export default function RuleConfigPage({ addToast }: RuleConfigPageProps) {
   const [filterService, setFilterService] = useState('');
   const [filterStatus, setFilterStatus] = useState(''); // ''=全部, '1'=启用, '0'=禁用
 
-  // Selection & pagination
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -97,20 +96,20 @@ export default function RuleConfigPage({ addToast }: RuleConfigPageProps) {
       } else {
         addToast(json.message || '保存失败', 'warning');
       }
-    } catch (err: any) {
+    } catch {
       addToast('网络异常，保存失败', 'warning');
     }
   };
 
   const handleDelete = async (id: number) => {
     const rule = rules.find(r => r.id === id);
-    if (!confirm(`确认删除规则 "${rule?.ruleName}" 吗？此操作无法撤销。`)) return;
+    const stationNames = (rule?.stationCodes || []).map(getStationName).join('、');
+    if (!confirm(`确认删除"${stationNames}"的规则吗？此操作无法撤销。`)) return;
     try {
       const res = await fetch(`/api/trade-mode-rules/${id}`, { method: 'DELETE' });
       const json = await res.json();
       if (json.success) {
-        addToast(`规则 "${rule?.ruleName}" 已删除`, 'success');
-        setSelectedIds(prev => prev.filter(sid => sid !== id));
+        addToast('规则已删除', 'success');
         fetchRules();
       }
     } catch {
@@ -118,53 +117,15 @@ export default function RuleConfigPage({ addToast }: RuleConfigPageProps) {
     }
   };
 
-  const handleBatchDelete = async () => {
-    if (selectedIds.length === 0) {
-      addToast('请在列表中勾选要删除的规则', 'warning');
-      return;
-    }
-    if (!confirm(`确认要批量删除已选中的 ${selectedIds.length} 条规则吗？此操作无法撤销。`)) return;
-    try {
-      const res = await fetch('/api/trade-mode-rules', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: selectedIds }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        addToast(`已批量删除 ${selectedIds.length} 条规则`, 'success');
-        setSelectedIds([]);
-        fetchRules();
-      }
-    } catch {
-      addToast('批量删除失败', 'warning');
-    }
-  };
-
-  // ─── Selection ──────────────────────────────────────────────────────────────
-  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.checked) {
-      setSelectedIds(paginatedRules.map(r => r.id));
-    } else {
-      setSelectedIds([]);
-    }
-  };
-
-  const handleSelectRow = (id: number) => {
-    setSelectedIds(prev =>
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-    );
-  };
-
-  // ─── Derived helpers ────────────────────────────────────────────────────────
+  // ─── Helpers ────────────────────────────────────────────────────────────────
   const getStationName = (code: string) => STATION_OPTIONS.find(o => o.code === code)?.name || code;
   const getServiceName = (code: string) => SERVICE_OPTIONS.find(o => o.code === code)?.name || code;
 
   const stationNamesForRule = (r: TradeModeRule) =>
-    r.isAllStation ? '全部货站' : r.stationCodes.map(getStationName).join(', ');
+    r.stationCodes.length === 0 ? '-' : r.stationCodes.map(getStationName).join('、');
 
   const serviceNamesForRule = (r: TradeModeRule) =>
-    r.isAllService ? '全部服务' : r.serviceCodes.map(getServiceName).join(', ');
+    r.serviceCodes.length === 0 ? '-' : r.serviceCodes.map(getServiceName).join('、');
 
   // Pagination
   const totalItems = rules.length;
@@ -258,17 +219,6 @@ export default function RuleConfigPage({ addToast }: RuleConfigPageProps) {
             <Plus className="h-3.5 w-3.5" />
             <span>新增规则</span>
           </button>
-
-          {selectedIds.length > 0 && (
-            <button
-              type="button"
-              onClick={handleBatchDelete}
-              className="flex items-center gap-1.5 rounded bg-red-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-red-700 transition-all"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              <span>批量删除 ({selectedIds.length})</span>
-            </button>
-          )}
         </div>
 
         <div className="text-[11px] text-slate-400">
@@ -279,23 +229,16 @@ export default function RuleConfigPage({ addToast }: RuleConfigPageProps) {
       {/* ─── Data Table ────────────────────────────────────────────────────── */}
       <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[960px]">
+          <table className="w-full text-left border-collapse min-w-[900px]">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-[11px] uppercase tracking-wide">
-                <th className="w-12 py-3 px-3.5 text-center">
-                  <input
-                    type="checkbox"
-                    checked={paginatedRules.length > 0 && paginatedRules.every(r => selectedIds.includes(r.id))}
-                    onChange={handleSelectAll}
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                  />
-                </th>
-                <th className="w-16 py-3 px-3 text-xs text-center">序号</th>
-                <th className="w-44 py-3 px-3 text-xs">规则名称</th>
-                <th className="w-52 py-3 px-3 text-xs">适用送货货站</th>
-                <th className="w-52 py-3 px-3 text-xs">适用服务类型</th>
-                <th className="w-28 py-3 px-3 text-xs text-center">贸易方式是否必填</th>
+                <th className="w-16 py-3 px-3 text-center text-xs">序号</th>
+                <th className="w-44 py-3 px-3 text-xs">送货货站</th>
+                <th className="w-44 py-3 px-3 text-xs">服务类型</th>
+                <th className="w-36 py-3 px-3 text-xs text-center">是否必填贸易方式</th>
                 <th className="w-24 py-3 px-3 text-xs text-center">状态</th>
+                <th className="w-28 py-3 px-3 text-xs">更新人</th>
+                <th className="w-36 py-3 px-3 text-xs">更新时间</th>
                 <th className="w-32 py-3 px-3 text-xs text-center">操作</th>
               </tr>
             </thead>
@@ -314,36 +257,18 @@ export default function RuleConfigPage({ addToast }: RuleConfigPageProps) {
                 </tr>
               ) : (
                 paginatedRules.map((rule, idx) => {
-                  const isSelected = selectedIds.includes(rule.id);
                   const rowNum = startIndex + idx + 1;
                   return (
                     <tr
                       key={rule.id}
-                      className={`transition-colors hover:bg-blue-50/20 ${
-                        isSelected ? 'bg-blue-50/10' : ''
-                      }`}
+                      className="transition-colors hover:bg-blue-50/20"
                     >
-                      <td className="py-3 px-3.5 text-center">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => handleSelectRow(rule.id)}
-                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                        />
-                      </td>
                       <td className="py-3 px-3 text-center font-mono text-slate-500">{rowNum}</td>
-                      <td className="py-3 px-3">
-                        <span className="font-semibold text-slate-800">{rule.ruleName}</span>
+                      <td className="py-3 px-3 text-slate-600">
+                        {stationNamesForRule(rule)}
                       </td>
                       <td className="py-3 px-3 text-slate-600">
-                        <span className={rule.isAllStation ? 'text-blue-600 font-medium' : ''}>
-                          {stationNamesForRule(rule)}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-slate-600">
-                        <span className={rule.isAllService ? 'text-blue-600 font-medium' : ''}>
-                          {serviceNamesForRule(rule)}
-                        </span>
+                        {serviceNamesForRule(rule)}
                       </td>
                       <td className="py-3 px-3 text-center">
                         {rule.isRequired ? (
@@ -366,6 +291,12 @@ export default function RuleConfigPage({ addToast }: RuleConfigPageProps) {
                         }`}>
                           {rule.status ? '启用' : '禁用'}
                         </span>
+                      </td>
+                      <td className="py-3 px-3 text-slate-600">
+                        {rule.updateUser || '-'}
+                      </td>
+                      <td className="py-3 px-3 text-slate-500 font-mono text-[10px]">
+                        {rule.updateTime || rule.createTime || '-'}
                       </td>
                       <td className="py-3 px-3 text-center">
                         <div className="flex items-center justify-center gap-2">
@@ -440,7 +371,7 @@ export default function RuleConfigPage({ addToast }: RuleConfigPageProps) {
         )}
       </div>
 
-      {/* ─── Info Panel: Dynamic Validation Logic ──────────────────────────── */}
+      {/* ─── Info Panel ────────────────────────────────────────────────────── */}
       <div className="rounded-xl border border-blue-150 bg-blue-50/40 p-5 max-w-4xl">
         <div className="flex items-start gap-3">
           <ExternalLink className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
@@ -449,12 +380,11 @@ export default function RuleConfigPage({ addToast }: RuleConfigPageProps) {
             <p>
               本配置模块管理运单系统中「贸易方式」字段的可配置化校验逻辑。当客户在前台创建运单时，
               系统会根据所选 <strong>送货货站</strong> 和 <strong>服务类型</strong> 的组合，
-              动态匹配规则并决定「贸易方式」字段是否必填（渲染红星标记）。
+              动态匹配规则并决定「贸易方式」字段是否必填。
             </p>
             <ul className="list-disc pl-4 space-y-1 text-slate-600">
               <li><strong>匹配优先级：</strong>最新创建的启用规则优先匹配（ID 降序）。</li>
               <li><strong>防重校验：</strong>同一 [货站 + 服务] 组合只允许存在一条启用规则。</li>
-              <li><strong>全部选项：</strong>若规则设置为"全部货站"或"全部服务"，则覆盖所有对应选项。</li>
               <li><strong>即时生效：</strong>规则保存后即刻在运单创建页面生效，无需刷新。</li>
             </ul>
           </div>
