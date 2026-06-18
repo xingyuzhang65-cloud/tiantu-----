@@ -168,57 +168,49 @@ app.get("/api/trade-mode-rules", (req, res) => {
   }
   if (stationCode) {
     result = result.filter(
-      (r) => r.isAllStation || r.stationCodes.includes(stationCode)
+      (r) => r.stationCodes.includes(stationCode)
     );
   }
   if (serviceCode) {
     result = result.filter(
-      (r) => r.isAllService || r.serviceCodes.includes(serviceCode)
+      (r) => r.serviceCodes.includes(serviceCode)
     );
   }
   return res.json({ success: true, data: result });
 });
 app.post("/api/trade-mode-rules", (req, res) => {
-  const { ruleName, isAllStation, isAllService, isRequired, status, stationCodes, serviceCodes } = req.body;
-  if (!ruleName || !ruleName.trim()) {
-    return res.status(400).json({ success: false, message: "\u89C4\u5219\u540D\u79F0\u4E0D\u80FD\u4E3A\u7A7A" });
-  }
-  if (ruleName.length > 50) {
-    return res.status(400).json({ success: false, message: "\u89C4\u5219\u540D\u79F0\u4E0D\u80FD\u8D85\u8FC750\u4E2A\u5B57\u7B26" });
-  }
+  const { isRequired, status, stationCodes, serviceCodes, updateUser } = req.body;
   if (isRequired === void 0) {
     return res.status(400).json({ success: false, message: "\u8BF7\u9009\u62E9\u8D38\u6613\u65B9\u5F0F\u662F\u5426\u5FC5\u586B" });
   }
-  if (!isAllStation && (!stationCodes || stationCodes.length === 0)) {
+  if (!stationCodes || stationCodes.length === 0) {
     return res.status(400).json({ success: false, message: "\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u4E2A\u9001\u8D27\u8D27\u7AD9" });
   }
-  if (!isAllService && (!serviceCodes || serviceCodes.length === 0)) {
+  if (!serviceCodes || serviceCodes.length === 0) {
     return res.status(400).json({ success: false, message: "\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u4E2A\u670D\u52A1\u7C7B\u578B" });
   }
   if (status !== false) {
     const conflict = tradeModeRules.find((r) => {
       if (!r.status) return false;
-      const stationOverlap = r.isAllStation || isAllStation || r.stationCodes.some((sc) => (stationCodes || []).includes(sc));
-      const serviceOverlap = r.isAllService || isAllService || r.serviceCodes.some((sc) => (serviceCodes || []).includes(sc));
+      const stationOverlap = r.stationCodes.some((sc) => (stationCodes || []).includes(sc));
+      const serviceOverlap = r.serviceCodes.some((sc) => (serviceCodes || []).includes(sc));
       return stationOverlap && serviceOverlap;
     });
     if (conflict) {
       return res.status(409).json({
         success: false,
-        message: `\u8BE5\u8D27\u7AD9\u4E0E\u670D\u52A1\u7EC4\u5408\u5DF2\u88AB\u89C4\u5219 [${conflict.ruleName}] \u5360\u7528`
+        message: `\u8BE5\u8D27\u7AD9\u4E0E\u670D\u52A1\u7EC4\u5408\u5DF2\u88AB\u5DF2\u6709\u89C4\u5219\u5360\u7528`
       });
     }
   }
   const timestamp = now();
   const newRule = {
     id: ruleIdCounter++,
-    ruleName: ruleName.trim(),
-    isAllStation: !!isAllStation,
-    isAllService: !!isAllService,
     isRequired: !!isRequired,
     status: status !== false,
-    stationCodes: isAllStation ? [] : stationCodes || [],
-    serviceCodes: isAllService ? [] : serviceCodes || [],
+    stationCodes: stationCodes || [],
+    serviceCodes: serviceCodes || [],
+    updateUser: updateUser || "\u5929\u6717\uFF08\u4ED8\u8C6A\uFF09",
     createTime: timestamp,
     updateTime: timestamp
   };
@@ -231,23 +223,13 @@ app.put("/api/trade-mode-rules/:id", (req, res) => {
   if (!rule) {
     return res.status(404).json({ success: false, message: "\u89C4\u5219\u672A\u627E\u5230" });
   }
-  const { ruleName, isAllStation, isAllService, isRequired, status, stationCodes, serviceCodes } = req.body;
-  if (ruleName !== void 0) {
-    if (!ruleName.trim()) {
-      return res.status(400).json({ success: false, message: "\u89C4\u5219\u540D\u79F0\u4E0D\u80FD\u4E3A\u7A7A" });
-    }
-    if (ruleName.length > 50) {
-      return res.status(400).json({ success: false, message: "\u89C4\u5219\u540D\u79F0\u4E0D\u80FD\u8D85\u8FC750\u4E2A\u5B57\u7B26" });
-    }
-  }
-  const resolvedIsAllStation = isAllStation !== void 0 ? !!isAllStation : rule.isAllStation;
-  const resolvedIsAllService = isAllService !== void 0 ? !!isAllService : rule.isAllService;
-  const resolvedStationCodes = resolvedIsAllStation ? [] : stationCodes !== void 0 ? stationCodes : rule.stationCodes;
-  const resolvedServiceCodes = resolvedIsAllService ? [] : serviceCodes !== void 0 ? serviceCodes : rule.serviceCodes;
-  if (!resolvedIsAllStation && resolvedStationCodes.length === 0) {
+  const { isRequired, status, stationCodes, serviceCodes, updateUser } = req.body;
+  const resolvedStationCodes = stationCodes !== void 0 ? stationCodes : rule.stationCodes;
+  const resolvedServiceCodes = serviceCodes !== void 0 ? serviceCodes : rule.serviceCodes;
+  if (resolvedStationCodes.length === 0) {
     return res.status(400).json({ success: false, message: "\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u4E2A\u9001\u8D27\u8D27\u7AD9" });
   }
-  if (!resolvedIsAllService && resolvedServiceCodes.length === 0) {
+  if (resolvedServiceCodes.length === 0) {
     return res.status(400).json({ success: false, message: "\u8BF7\u81F3\u5C11\u9009\u62E9\u4E00\u4E2A\u670D\u52A1\u7C7B\u578B" });
   }
   const resolvedStatus = status !== void 0 ? status !== false : rule.status;
@@ -255,24 +237,22 @@ app.put("/api/trade-mode-rules/:id", (req, res) => {
     const conflict = tradeModeRules.find((r) => {
       if (r.id === id) return false;
       if (!r.status) return false;
-      const stationOverlap = r.isAllStation || resolvedIsAllStation || r.stationCodes.some((sc) => resolvedStationCodes.includes(sc));
-      const serviceOverlap = r.isAllService || resolvedIsAllService || r.serviceCodes.some((sc) => resolvedServiceCodes.includes(sc));
+      const stationOverlap = r.stationCodes.some((sc) => resolvedStationCodes.includes(sc));
+      const serviceOverlap = r.serviceCodes.some((sc) => resolvedServiceCodes.includes(sc));
       return stationOverlap && serviceOverlap;
     });
     if (conflict) {
       return res.status(409).json({
         success: false,
-        message: `\u8BE5\u8D27\u7AD9\u4E0E\u670D\u52A1\u7EC4\u5408\u5DF2\u88AB\u89C4\u5219 [${conflict.ruleName}] \u5360\u7528`
+        message: `\u8BE5\u8D27\u7AD9\u4E0E\u670D\u52A1\u7EC4\u5408\u5DF2\u88AB\u5DF2\u6709\u89C4\u5219\u5360\u7528`
       });
     }
   }
-  if (ruleName !== void 0) rule.ruleName = ruleName.trim();
-  rule.isAllStation = resolvedIsAllStation;
-  rule.isAllService = resolvedIsAllService;
   rule.stationCodes = resolvedStationCodes;
   rule.serviceCodes = resolvedServiceCodes;
   if (isRequired !== void 0) rule.isRequired = !!isRequired;
   rule.status = resolvedStatus;
+  if (updateUser !== void 0) rule.updateUser = updateUser;
   rule.updateTime = now();
   return res.json({ success: true, data: rule });
 });
@@ -303,15 +283,14 @@ app.post("/api/check-trade-mode", (req, res) => {
   }
   const matchedRule = [...tradeModeRules].reverse().find((r) => {
     if (!r.status) return false;
-    const stationMatch = r.isAllStation || r.stationCodes.includes(stationCode);
-    const serviceMatch = r.isAllService || r.serviceCodes.includes(serviceCode);
+    const stationMatch = r.stationCodes.includes(stationCode);
+    const serviceMatch = r.serviceCodes.includes(serviceCode);
     return stationMatch && serviceMatch;
   });
   return res.json({
     success: true,
     data: {
-      isRequired: matchedRule ? matchedRule.isRequired : false,
-      matchedRuleName: matchedRule ? matchedRule.ruleName : void 0
+      isRequired: matchedRule ? matchedRule.isRequired : false
     }
   });
 });
