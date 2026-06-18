@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { 
   ArrowLeft, UploadCloud, Plus, Minus, CheckCircle2, 
   Loader2, FileSpreadsheet, Trash2, ArrowRight
@@ -75,21 +75,6 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
   const [isParsing, setIsParsing] = useState(false);
   const [parsingStep, setParsingStep] = useState('');
   const [fileName, setFileName] = useState<string | null>(null);
-  const shouldShowCustomsDeclaration =
-    (deliveryStation === '塘厦仓' || deliveryStation === '义乌仓') && service === '美线海卡';
-  const shouldShowTradeMode = shouldShowCustomsDeclaration && declarationType === '报关退税';
-
-  useEffect(() => {
-    if (!shouldShowCustomsDeclaration && declarationType) {
-      setDeclarationType('');
-    }
-  }, [shouldShowCustomsDeclaration, declarationType]);
-
-  useEffect(() => {
-    if (!shouldShowTradeMode && tradeMode) {
-      setTradeMode('');
-    }
-  }, [shouldShowTradeMode, tradeMode]);
 
   // Auto calculate export value from items total
   const recalculateExportValue = (rows: CargoRow[]) => {
@@ -229,10 +214,6 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
   const handleOrderSubmit = () => {
     if (!declarationType) {
       addToast('请选择报关方式', 'warning');
-      return;
-    }
-    if (!tradeMode) {
-      addToast('请选择贸易方式', 'warning');
       return;
     }
     if (!clearanceType) {
@@ -710,7 +691,7 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
 
           <div>
             <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-              <span className="text-red-500 mr-0.5">*</span>贸易方式
+              贸易方式
             </label>
             <select
               value={tradeMode}
