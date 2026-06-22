@@ -46,6 +46,9 @@ export default function TableSection({
 
   // Selected checkboxes
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [printLabelMenuOpen, setPrintLabelMenuOpen] = useState(false);
+  const [systemLabelPanelOpen, setSystemLabelPanelOpen] = useState(false);
+  const [systemLabelDownloadMode, setSystemLabelDownloadMode] = useState<'split' | 'continuous'>('split');
   const [batchMenuOpen, setBatchMenuOpen] = useState(false);
   const [batchTradePanelOpen, setBatchTradePanelOpen] = useState(false);
   const [batchTradeMode, setBatchTradeMode] = useState('');
@@ -120,6 +123,8 @@ export default function TableSection({
     const timeB = new Date(b.createTime).getTime();
     return sortAsc ? timeA - timeB : timeB - timeA;
   });
+  const selectedPrintWaybills = waybills.filter(item => selectedIds.includes(item.id));
+  const systemLabelWatermarks = Array.from({ length: 28 }, (_, index) => index);
 
   // Paginated partition
   const totalItems = sortedWaybills.length;
@@ -187,6 +192,16 @@ export default function TableSection({
     setTimeout(() => {
       addToast('附加费及国内贴标打包费率计算模型更新完毕', 'success');
     }, 1000);
+  };
+
+  const handlePrintSystemLabel = () => {
+    if (selectedIds.length === 0) {
+      addToast('请在下方列表中勾选要打印系统标签的运单', 'warning');
+      return;
+    }
+
+    setPrintLabelMenuOpen(false);
+    setSystemLabelPanelOpen(true);
   };
 
   const handleBatchTradeModeUpdate = (nextTradeMode = batchTradeMode) => {
@@ -376,6 +391,7 @@ export default function TableSection({
     ['州', getState(waybill)],
     ['目的地', waybill.country],
     ['交税方式', waybill.taxMethod || '包税'],
+    ['贸易方式', waybill.tradeMode || '-'],
     ['申报币种', waybill.currency || 'USD'],
     ['仓库代码', getWarehouseCode(waybill)],
     ['预计送达周', waybill.orderWeek || '2026-06-28~2026-07-04'],
@@ -610,20 +626,48 @@ export default function TableSection({
           </button>
 
           {/* 打印标签 */}
-          <button
-            type="button"
-            onClick={() => addToast('正在生成货箱专属 FBA 揽收电子吊贴/面单...', 'info')}
-            className="flex items-center gap-1 rounded bg-[#004bb1] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#003b91] transition-all"
-          >
-            <span>打印标签</span>
-            <ChevronDown className="h-3 w-3" />
-          </button>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setPrintLabelMenuOpen(prev => !prev);
+                setBatchMenuOpen(false);
+              }}
+              className="flex items-center gap-1 rounded bg-[#004bb1] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#003b91] transition-all"
+            >
+              <span>打印标签</span>
+              <ChevronDown className="h-3 w-3" />
+            </button>
+
+            {printLabelMenuOpen && (
+              <div className="absolute left-0 top-full z-30 mt-1 w-32 rounded-sm border border-slate-200 bg-white py-1 shadow-xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPrintLabelMenuOpen(false);
+                    addToast('正在生成货箱专属 FBA 揽收电子吊贴/面单...', 'info');
+                  }}
+                  className="flex w-full items-center justify-between px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-blue-50 hover:text-[#004bb1]"
+                >
+                  <span>FBA标签</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePrintSystemLabel}
+                  className="flex w-full items-center justify-between px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-blue-50 hover:text-[#004bb1]"
+                >
+                  <span>系统标签</span>
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* 批量操作 */}
           <div className="relative">
             <button
               type="button"
               onClick={() => {
+                setPrintLabelMenuOpen(false);
                 setBatchMenuOpen(prev => {
                   const nextOpen = !prev;
                   return nextOpen;
@@ -1214,6 +1258,109 @@ export default function TableSection({
         </div>
       )}
 
+      {systemLabelPanelOpen && (
+        <div className="fixed inset-0 z-[85] flex items-start justify-center bg-slate-950/45 pt-[50px] text-slate-700">
+          <div className="relative flex h-[505px] w-[920px] flex-col overflow-hidden rounded-sm bg-white shadow-2xl">
+            <div className="relative z-10 border-b border-slate-200 px-5 py-4">
+              <h3 className="text-lg font-bold text-slate-900">打印标签</h3>
+            </div>
+
+            <div className="relative flex-1 overflow-hidden">
+              <div className="pointer-events-none absolute inset-0 select-none overflow-hidden text-[14px] font-semibold text-slate-200/60">
+                {systemLabelWatermarks.map((item) => (
+                  <span
+                    key={item}
+                    className="absolute -rotate-[22deg] whitespace-nowrap"
+                    style={{
+                      left: `${(item % 4) * 31 - 7}%`,
+                      top: `${Math.floor(item / 4) * 20 + 3}%`,
+                    }}
+                  >
+                    管理员2026-06-22
+                  </span>
+                ))}
+              </div>
+
+              <div className="relative z-10 px-5 py-8">
+                <div className="space-y-3 text-sm">
+                  {selectedPrintWaybills.map((waybill) => (
+                    <div key={waybill.id} className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      <span className="whitespace-nowrap">
+                        <span className="text-slate-600">运单号：</span>
+                        <span className="ml-1 font-medium text-slate-700">{waybill.id}</span>
+                      </span>
+                      <span className="whitespace-nowrap">
+                        <span className="text-slate-600">服务：</span>
+                        <span className="ml-1 font-medium text-slate-700">{waybill.carrier}</span>
+                      </span>
+                      <label className="flex items-center gap-2 whitespace-nowrap">
+                        <span className="text-slate-600">标签显示服务：</span>
+                        <select
+                          value={waybill.carrier}
+                          disabled
+                          className="h-8 w-56 rounded border border-slate-200 bg-slate-100 px-3 text-sm font-medium text-slate-400 outline-none"
+                        >
+                          <option value={waybill.carrier}>{waybill.carrier}</option>
+                        </select>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="relative z-10 bg-white px-5 py-6">
+              <div className="mb-5 flex items-center justify-center gap-5 text-sm text-slate-600">
+                <span>下载方式：</span>
+                <label className="flex cursor-pointer items-center gap-1.5">
+                  <input
+                    type="radio"
+                    name="systemLabelDownloadMode"
+                    checked={systemLabelDownloadMode === 'split'}
+                    onChange={() => setSystemLabelDownloadMode('split')}
+                    className="h-3.5 w-3.5 text-blue-600"
+                  />
+                  <span>多票分割</span>
+                </label>
+                <label className="flex cursor-pointer items-center gap-1.5">
+                  <input
+                    type="radio"
+                    name="systemLabelDownloadMode"
+                    checked={systemLabelDownloadMode === 'continuous'}
+                    onChange={() => setSystemLabelDownloadMode('continuous')}
+                    className="h-3.5 w-3.5 text-blue-600"
+                  />
+                  <span>多票连续</span>
+                </label>
+              </div>
+              <div className="flex justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSystemLabelPanelOpen(false)}
+                  className="rounded border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addToast(`正在打印 ${selectedPrintWaybills.length} 张系统标签`, 'info')}
+                  className="rounded bg-[#004bb1] px-5 py-1.5 text-xs font-bold text-white hover:bg-[#003b91]"
+                >
+                  打印
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addToast(`正在下载 ${selectedPrintWaybills.length} 张系统标签PDF`, 'success')}
+                  className="rounded bg-[#004bb1] px-5 py-1.5 text-xs font-bold text-white hover:bg-[#003b91]"
+                >
+                  下载PDF
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {batchTradePanelOpen && (
         <div className="fixed inset-0 z-[70] flex items-start justify-center bg-slate-950/50 pt-16">
           <div className="w-[520px] rounded-sm bg-white shadow-2xl">
@@ -1256,7 +1403,7 @@ export default function TableSection({
                 onClick={() => handleBatchTradeModeUpdate()}
                 className="rounded bg-[#004bb1] px-5 py-1.5 text-xs font-bold text-white hover:bg-[#003b91]"
               >
-                保存
+                确定
               </button>
             </div>
           </div>
