@@ -8,20 +8,18 @@ import AiInvoicePage from './AiInvoicePage';
 
 // Station & Service name → code mapping for API
 const STATION_NAME_TO_CODE: Record<string, string> = {
-  '深圳天图货站': 'sz_tiantu',
-  '上海分拨货站': 'shanghai_distribution',
   '塘厦仓': 'tangxia',
-  '东莞塘厦分中心': 'dongguan_tangxia',
-  '义乌中转营地': 'yiwu_transfer',
+  '广州仓': 'guangzhou',
+  '义乌仓': 'yiwu',
 };
 
 const SERVICE_NAME_TO_CODE: Record<string, string> = {
-  '美国21日达': 'us_21day',
-  '海德运通': 'haide_express',
-  '美森尊卡限时达': 'matson_vip',
-  '常润空快3日卡': 'changrun_air',
-  '卡派高派拼箱': 'lcl_direct',
-  '深圳天图海派专线': 'sz_tiantu_sea',
+  '美线空派': 'us_air_express',
+  '美线海卡': 'us_sea_truck',
+  '义乌天图': 'yiwu_tiantu',
+  '英线海卡': 'uk_sea',
+  '德线空派': 'de_air',
+  '日本快线': 'japan_express',
 };
 
 interface CreateModalProps {
@@ -85,14 +83,12 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
 
   // ─── Dynamic Trade Mode Validation ────────────────────────────────────────
   const [tradeModeRequired, setTradeModeRequired] = useState(false);
-  const [matchedRuleName, setMatchedRuleName] = useState<string | null>(null);
-  const shouldShowTradeMode = tradeModeRequired;
+    const shouldShowTradeMode = tradeModeRequired;
 
   // Watch station + service changes → check if trade mode is required
   useEffect(() => {
     if (!deliveryStation || !service) {
       setTradeModeRequired(false);
-      setMatchedRuleName(null);
       if (!tradeModeRequired && errors.tradeMode) {
         setErrors(prev => { const { tradeMode, ...rest } = prev; return rest; });
       }
@@ -104,7 +100,6 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
 
     if (!stationCode || !serviceCode) {
       setTradeModeRequired(false);
-      setMatchedRuleName(null);
       return;
     }
 
@@ -120,7 +115,6 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
         if (cancelled) return;
         if (json.success) {
           setTradeModeRequired(json.data.isRequired);
-          setMatchedRuleName(json.data.matchedRuleName || null);
           // Clear error when trade mode becomes non-required
           if (!json.data.isRequired && errors.tradeMode) {
             setErrors(prev => { const { tradeMode, ...rest } = prev; return rest; });
@@ -172,7 +166,7 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
     if (!country) newErrors.country = '请选择国家或地区';
     if (!service) newErrors.service = '请选择服务类型';
     if (tradeModeRequired && !tradeMode) {
-      newErrors.tradeMode = `根据规则"${matchedRuleName}"，贸易方式为必填项`;
+      newErrors.tradeMode = '该货站走此服务必须填写贸易方式！';
     }
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -256,9 +250,9 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
         createTime: new Date().toLocaleString().replace(/\//g, '-'),
         pickupTime: '待揽入库',
         groupCode: randomGroup,
-        carrier: '海德运通',
+        carrier: '美线海卡',
         zipCode: '90001-F32B',
-        station: '深圳天图',
+        station: '塘厦仓',
         customerType: '基础价格',
         status: '待揽收',
         packagesCount: 12,
@@ -290,9 +284,9 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
         createTime: new Date().toISOString().slice(0, 19).replace('T', ' '),
         pickupTime: '未揽收',
         groupCode: randomGroup,
-        carrier: parsedDraft.carrier || '海德运通',
+        carrier: parsedDraft.carrier || '美线海卡',
         zipCode: parsedDraft.country === '美国' ? '85043-2356' : parsedDraft.country === '英国' ? 'EC1A-1BB' : '80331-MUC',
-        station: parsedDraft.station || '深圳天图货站',
+        station: parsedDraft.station || '塘厦仓',
         customerType: parsedDraft.customerName?.includes('VIP') ? 'vip' : '基础价格',
         status: '待揽收',
         packagesCount: parsedDraft.packagesCount || 1,
@@ -319,7 +313,7 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
     if (!country) newErrors.country = '请选择国家或地区';
     if (!service) newErrors.service = '请选择服务类型';
     if (tradeModeRequired && !tradeMode) {
-      newErrors.tradeMode = `根据规则"${matchedRuleName}"，贸易方式为必填项`;
+      newErrors.tradeMode = '该货站走此服务必须填写贸易方式！';
     }
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -487,9 +481,9 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
         setParsedDraft({
           customerName: '付豪跨境电商事业群',
           country: '美国',
-          station: '东莞塘厦分中心',
+          station: '义乌仓',
           packagesCount: 22,
-          carrier: '美森尊卡限时达',
+          carrier: '美线空派',
           fbaCode: 'ONT8',
           remarks: '由于未配置有效 Gemini API KEY，系统自动激活备用沙盒解析方案。' + (invoiceText ? ' 识别输入: ' + invoiceText.slice(0, 30) : ''),
           description: '电子配件一批 (沙盒提取)'
@@ -503,9 +497,9 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
       setParsedDraft({
         customerName: '付豪跨境电商事业群',
         country: '美国',
-        station: '东莞塘厦分中心',
+        station: '义乌仓',
         packagesCount: 18,
-        carrier: '美森尊卡限时达',
+        carrier: '美线空派',
         fbaCode: 'ONT8',
         remarks: '沙盒备份智能提取：原发票内容转运中。原装拉伸膜包裹。',
         description: '随箱货物理查无异常'
@@ -692,11 +686,9 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
                         }`}
                       >
                         <option value="">请选择送货开单货站</option>
-                        <option value="深圳天图货站">深圳天图货站</option>
-                        <option value="上海分拨货站">上海分拨货站</option>
                         <option value="塘厦仓">塘厦仓</option>
-                        <option value="东莞塘厦分中心">东莞塘厦分中心</option>
-                        <option value="义乌中转营地">义乌中转营地</option>
+                        <option value="广州仓">广州仓</option>
+                        <option value="义乌仓">义乌仓</option>
                       </select>
                       {errors.deliveryStation && <span className="absolute text-[9px] text-red-500 -bottom-3.5 left-0">{errors.deliveryStation}</span>}
                     </div>
@@ -825,12 +817,12 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
                         }`}
                       >
                         <option value="">请选择服务类型</option>
-                        <option value="美国21日达">美国21日达</option>
-                        <option value="海德运通">海德运通 (HT Express)</option>
-                        <option value="美森尊卡限时达">美森尊卡限时达 (Matson VIP)</option>
-                        <option value="常润空快3日卡">常润空快3日卡 (Air Fast)</option>
-                        <option value="卡派高派拼箱">卡派高派拼箱 (LCL Direct)</option>
-                        <option value="深圳天图海派专线">深圳天图海派专线</option>
+                        <option value="美线空派">美线空派</option>
+                        <option value="美线海卡">美线海卡</option>
+                        <option value="义乌天图">义乌天图</option>
+                        <option value="英线海卡">英线海卡</option>
+                        <option value="德线空派">德线空派</option>
+                        <option value="日本快线">日本快线</option>
                       </select>
                       {errors.service && <span className="absolute text-[9px] text-red-500 -bottom-3.5 left-0">{errors.service}</span>}
                     </div>
@@ -863,11 +855,6 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
                       <div className="relative">
                         <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                           <span className="text-red-500 mr-1">*</span>贸易方式
-                          {matchedRuleName && (
-                            <span className="ml-1 text-[10px] font-normal text-blue-500">
-                              （规则: {matchedRuleName}）
-                            </span>
-                          )}
                         </label>
                         <select
                           id="select-trade-mode"
@@ -889,11 +876,6 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
                         </select>
                         {errors.tradeMode && (
                           <span className="absolute text-[9px] text-red-500 -bottom-3.5 left-0">{errors.tradeMode}</span>
-                        )}
-                        {!errors.tradeMode && matchedRuleName && (
-                          <span className="text-[9px] text-blue-400 mt-0.5 block">
-                            📋 匹配校验规则，必须填写贸易方式
-                          </span>
                         )}
                       </div>
                     )}
@@ -1019,11 +1001,9 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
                                 }`}
                               >
                                 <option value="">请选择</option>
-                                <option value="深圳天图货站">深圳天图货站</option>
-                                <option value="上海分拨货站">上海分拨货站</option>
                                 <option value="塘厦仓">塘厦仓</option>
-                                <option value="东莞塘厦分中心">东莞塘厦分中心</option>
-                                <option value="义乌中转营地">义乌中转营地</option>
+                                <option value="广州仓">广州仓</option>
+                                <option value="义乌仓">义乌仓</option>
                               </select>
                             </td>
 
@@ -1127,12 +1107,12 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
                                 }`}
                               >
                                 <option value="">请选择</option>
-                                <option value="美国21日达">美国21日达</option>
-                                <option value="海德运通">海德运通 (HT Express)</option>
-                                <option value="美森尊卡限时达">美森尊卡限时达</option>
-                                <option value="常润空快3日卡">常润空快3日卡</option>
-                                <option value="卡派高派拼箱">卡派高派拼箱</option>
-                                <option value="深圳天图海派专线">深圳天图海派专线</option>
+                                <option value="美线空派">美线空派</option>
+                                <option value="美线海卡">美线海卡</option>
+                                <option value="义乌天图">义乌天图</option>
+                                <option value="英线海卡">英线海卡</option>
+                                <option value="德线空派">德线空派</option>
+                                <option value="日本快线">日本快线</option>
                               </select>
                             </td>
 
@@ -1383,10 +1363,9 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
                       onChange={(e) => setDeliveryStation(e.target.value)}
                       className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
                     >
-                      <option value="深圳天图货站">深圳天图货站</option>
-                      <option value="上海分拨货站">上海分拨货站</option>
                       <option value="塘厦仓">塘厦仓</option>
-                      <option value="东莞塘厦分中心">东莞塘厦分中心</option>
+                      <option value="广州仓">广州仓</option>
+                      <option value="义乌仓">义乌仓</option>
                     </select>
                   </div>
 
@@ -1544,9 +1523,9 @@ SPECIAL HANDLINGS: Water-proof stretch film packaging, handle with care.`;
                       createTime: new Date().toLocaleString().replace(/\//g, '-'),
                       pickupTime: '未揽收',
                       groupCode: `USSZ202606${Math.floor(100000 + Math.random() * 900000)}`,
-                      carrier: '卡派高派拼箱',
+                      carrier: '英线海卡',
                       zipCode: '85043-2356',
-                      station: deliveryStation || '深圳天图货站',
+                      station: deliveryStation || '塘厦仓',
                       customerType: '普通客户',
                       status: '待揽收',
                       packagesCount: 180, 

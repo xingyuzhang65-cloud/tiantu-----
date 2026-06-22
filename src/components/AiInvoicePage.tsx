@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { 
   ArrowLeft, UploadCloud, Plus, Minus, CheckCircle2, 
   Loader2, FileSpreadsheet, Trash2, ArrowRight
@@ -75,21 +75,6 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
   const [isParsing, setIsParsing] = useState(false);
   const [parsingStep, setParsingStep] = useState('');
   const [fileName, setFileName] = useState<string | null>(null);
-  const shouldShowCustomsDeclaration =
-    (deliveryStation === '塘厦仓' || deliveryStation === '东莞塘厦分中心') && service === '美国21日达';
-  const shouldShowTradeMode = shouldShowCustomsDeclaration && declarationType === '报关退税';
-
-  useEffect(() => {
-    if (!shouldShowCustomsDeclaration && declarationType) {
-      setDeclarationType('');
-    }
-  }, [shouldShowCustomsDeclaration, declarationType]);
-
-  useEffect(() => {
-    if (!shouldShowTradeMode && tradeMode) {
-      setTradeMode('');
-    }
-  }, [shouldShowTradeMode, tradeMode]);
 
   // Auto calculate export value from items total
   const recalculateExportValue = (rows: CargoRow[]) => {
@@ -156,9 +141,9 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
       // Simple pre-fill simulation sequence
       setTimeout(() => {
         setCustomer('付豪跨境电商事业群');
-        setDeliveryStation('深圳天图货站');
+        setDeliveryStation('塘厦仓');
         setDeliveryDate('2026-06-16');
-        setService('美森尊卡限时达');
+        setService('美线空派');
         setWarehouseCode('ONT8');
         setReceiverName('John Doe');
         setDeliveryWeek('2026年第25周');
@@ -227,12 +212,12 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
   };
 
   const handleOrderSubmit = () => {
-    if (shouldShowCustomsDeclaration && !declarationType) {
+    if (!declarationType) {
       addToast('请选择报关方式', 'warning');
       return;
     }
-    if (shouldShowTradeMode && !tradeMode) {
-      addToast('请选择贸易方式', 'warning');
+    if (!clearanceType) {
+      addToast('请选择清关方式', 'warning');
       return;
     }
 
@@ -252,9 +237,9 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
         createTime: new Date().toLocaleString().replace(/\//g, '-'),
         pickupTime: '未揽收',
         groupCode: `USSZ202606${Math.floor(100000 + Math.random() * 900000)}`,
-        carrier: service || '海德运通',
+        carrier: service || '美线海卡',
         zipCode: receiverZip || '85043-2356',
-        station: deliveryStation || '深圳天图货站',
+        station: deliveryStation || '塘厦仓',
         customerType: 'vip',
         status: '待揽收',
         packagesCount: 1,
@@ -264,8 +249,9 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
         hasUploadedInvoice: true,
         remarks: `发票解析单 ${customerOrderNo}. 材质: ${row.material}. 备注: ${remarks}`,
         customerName: customer || '付豪跨境电商事业群',
-        customsDeclarationType: shouldShowCustomsDeclaration ? declarationType : undefined,
-        tradeMode: shouldShowTradeMode ? tradeMode : undefined
+        customsDeclarationType: declarationType || undefined,
+        tradeMode: tradeMode || undefined,
+        clearanceType: clearanceType || undefined
       };
     });
 
@@ -388,11 +374,9 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
               className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
             >
               <option value="">请选择送货货站</option>
-              <option value="深圳天图货站">深圳天图货站</option>
-              <option value="上海分拨货站">上海分拨货站</option>
               <option value="塘厦仓">塘厦仓</option>
-              <option value="东莞塘厦分中心">东莞塘厦分中心</option>
-              <option value="义乌中转营地">义乌中转营地</option>
+              <option value="广州仓">广州仓</option>
+              <option value="义乌仓">义乌仓</option>
             </select>
           </div>
 
@@ -419,11 +403,12 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
               className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
             >
               <option value="">请选择</option>
-              <option value="美国21日达">美国21日达</option>
-              <option value="美森尊卡限时达">美森尊卡限时达</option>
-              <option value="海德运通">海德运通</option>
-              <option value="常润空快3日卡">常润空快3日卡</option>
-              <option value="卡派高派拼箱">卡派高派拼箱</option>
+              <option value="美线空派">美线空派</option>
+              <option value="美线海卡">美线海卡</option>
+              <option value="义乌天图">义乌天图</option>
+              <option value="英线海卡">英线海卡</option>
+              <option value="德线空派">德线空派</option>
+              <option value="日本快线">日本快线</option>
             </select>
           </div>
 
@@ -689,46 +674,42 @@ export default function AiInvoicePage({ onCancel, onSave, addToast, operatorName
             </select>
           </div>
 
-          {shouldShowCustomsDeclaration && (
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                <span className="text-red-500 mr-0.5">*</span>报关方式
-              </label>
-              <select
-                value={declarationType}
-                onChange={(e) => setDeclarationType(e.target.value)}
-                className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
-              >
-                <option value="">请选择</option>
-                <option value="报关退税">报关退税</option>
-                <option value="托管报关">托管报关</option>
-              </select>
-            </div>
-          )}
-
-          {shouldShowTradeMode && (
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                <span className="text-red-500 mr-0.5">*</span>贸易方式
-              </label>
-              <select
-                value={tradeMode}
-                onChange={(e) => setTradeMode(e.target.value)}
-                className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
-              >
-                <option value="">请选择</option>
-                <option value="9610">9610</option>
-                <option value="9710">9710</option>
-                <option value="9810">9810</option>
-                <option value="0110">0110</option>
-                <option value="1039">1039</option>
-              </select>
-            </div>
-          )}
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+              <span className="text-red-500 mr-0.5">*</span>报关方式
+            </label>
+            <select
+              value={declarationType}
+              onChange={(e) => setDeclarationType(e.target.value)}
+              className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            >
+              <option value="">请选择</option>
+              <option value="报关退税">报关退税</option>
+              <option value="托管报关">托管报关</option>
+            </select>
+          </div>
 
           <div>
             <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-              清关方式
+              贸易方式
+            </label>
+            <select
+              value={tradeMode}
+              onChange={(e) => setTradeMode(e.target.value)}
+              className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            >
+              <option value="">请选择</option>
+              <option value="9610">9610</option>
+              <option value="9710">9710</option>
+              <option value="9810">9810</option>
+              <option value="0110">0110</option>
+              <option value="1039">1039</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+              <span className="text-red-500 mr-0.5">*</span>清关方式
             </label>
             <select
               value={clearanceType}

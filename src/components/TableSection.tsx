@@ -1552,7 +1552,8 @@ export default function TableSection({
                       >
                         <option value="私人地址">私人地址</option>
                         <option value="塘厦仓">塘厦仓</option>
-                        <option value="深圳天图货站">深圳天图货站</option>
+                        <option value="广州仓">广州仓</option>
+                        <option value="义乌仓">义乌仓</option>
                       </select>
                     </label>
                     <label className="flex items-center gap-3">
