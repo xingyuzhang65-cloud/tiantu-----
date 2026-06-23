@@ -5,7 +5,7 @@ import {
   FileDown, Check, AlertOctagon, MapPin, X,
   Copy, Printer
 } from 'lucide-react';
-import { Waybill, SearchParams, OrderType } from '../types';
+import { Waybill, SearchParams, OrderType, WaybillAttachment } from '../types';
 
 interface TableSectionProps {
   waybills: Waybill[];
@@ -15,6 +15,179 @@ interface TableSectionProps {
   onUpdateWaybill: (id: string, patch: Partial<Waybill>) => void;
   addToast: (msg: string, type: 'success' | 'info' | 'warning') => void;
 }
+
+interface SystemLabelShipment {
+  orderNo: string;
+  customerNo: string;
+  service: string;
+  recipient: string;
+  pieces: number;
+}
+
+const pdfText = (value: string | number) => String(value)
+  .replace(/[^\x20-\x7E]/g, '?')
+  .replace(/\\/g, '\\\\')
+  .replace(/\(/g, '\\(')
+  .replace(/\)/g, '\\)');
+
+const createLabelPdf = (shipments: SystemLabelShipment[]) => {
+  const pages = shipments.map((shipment, index) => {
+    const y = 770;
+    return [
+      `BT /F1 18 Tf 50 ${y} Td (TIANTU SHIPPING LABEL) Tj ET`,
+      `BT /F1 12 Tf 50 730 Td (Waybill No: ${pdfText(shipment.orderNo)}) Tj ET`,
+      `BT /F1 12 Tf 50 705 Td (Customer No: ${pdfText(shipment.customerNo)}) Tj ET`,
+      `BT /F1 12 Tf 50 680 Td (Service: ${pdfText(shipment.service)}) Tj ET`,
+      `BT /F1 12 Tf 50 655 Td (Recipient: ${pdfText(shipment.recipient || '-')}) Tj ET`,
+      `BT /F1 12 Tf 50 630 Td (Pieces: ${pdfText(shipment.pieces || 1)}) Tj ET`,
+      `BT /F1 10 Tf 50 80 Td (Page ${index + 1} / ${shipments.length}) Tj ET`,
+      '0.5 w 45 605 505 1 re S',
+      '0.5 w 45 95 505 500 re S',
+    ].join('\n');
+  });
+
+  const fontObjectNumber = 3 + pages.length * 2;
+  const kids = pages.map((_, index) => `${3 + index * 2} 0 R`).join(' ');
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    `<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`,
+  ];
+
+  pages.forEach((content, index) => {
+    const pageObjectNumber = 3 + index * 2;
+    const contentObjectNumber = pageObjectNumber + 1;
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${fontObjectNumber} 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`);
+    objects.push(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  });
+
+  objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += '0000000000 65535 f \n';
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+
+  return new TextEncoder().encode(pdf);
+};
+
+const crcTable = (() => {
+  const table: number[] = [];
+  for (let n = 0; n < 256; n += 1) {
+    let c = n;
+    for (let k = 0; k < 8; k += 1) {
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    }
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+
+const crc32 = (data: Uint8Array) => {
+  let crc = 0xffffffff;
+  data.forEach((byte) => {
+    crc = crcTable[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  });
+  return (crc ^ 0xffffffff) >>> 0;
+};
+
+const writeUint16 = (view: DataView, offset: number, value: number) => {
+  view.setUint16(offset, value, true);
+};
+
+const writeUint32 = (view: DataView, offset: number, value: number) => {
+  view.setUint32(offset, value >>> 0, true);
+};
+
+const concatBytes = (parts: Uint8Array[]) => {
+  const total = parts.reduce((sum, part) => sum + part.length, 0);
+  const output = new Uint8Array(total);
+  let offset = 0;
+  parts.forEach((part) => {
+    output.set(part, offset);
+    offset += part.length;
+  });
+  return output;
+};
+
+const dosDateTime = (date = new Date()) => {
+  const time = (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2);
+  const dosDate = ((date.getFullYear() - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate();
+  return { time, date: dosDate };
+};
+
+const createZip = (entries: Array<{ name: string; data: Uint8Array }>) => {
+  const encoder = new TextEncoder();
+  const localParts: Uint8Array[] = [];
+  const centralParts: Uint8Array[] = [];
+  let offset = 0;
+  const stamp = dosDateTime();
+
+  entries.forEach((entry) => {
+    const nameBytes = encoder.encode(entry.name);
+    const data = entry.data;
+    const crc = crc32(data);
+
+    const localHeader = new Uint8Array(30 + nameBytes.length);
+    const localView = new DataView(localHeader.buffer);
+    writeUint32(localView, 0, 0x04034b50);
+    writeUint16(localView, 4, 20);
+    writeUint16(localView, 6, 0x0800);
+    writeUint16(localView, 8, 0);
+    writeUint16(localView, 10, stamp.time);
+    writeUint16(localView, 12, stamp.date);
+    writeUint32(localView, 14, crc);
+    writeUint32(localView, 18, data.length);
+    writeUint32(localView, 22, data.length);
+    writeUint16(localView, 26, nameBytes.length);
+    writeUint16(localView, 28, 0);
+    localHeader.set(nameBytes, 30);
+    localParts.push(localHeader, data);
+
+    const centralHeader = new Uint8Array(46 + nameBytes.length);
+    const centralView = new DataView(centralHeader.buffer);
+    writeUint32(centralView, 0, 0x02014b50);
+    writeUint16(centralView, 4, 20);
+    writeUint16(centralView, 6, 20);
+    writeUint16(centralView, 8, 0x0800);
+    writeUint16(centralView, 10, 0);
+    writeUint16(centralView, 12, stamp.time);
+    writeUint16(centralView, 14, stamp.date);
+    writeUint32(centralView, 16, crc);
+    writeUint32(centralView, 20, data.length);
+    writeUint32(centralView, 24, data.length);
+    writeUint16(centralView, 28, nameBytes.length);
+    writeUint16(centralView, 30, 0);
+    writeUint16(centralView, 32, 0);
+    writeUint16(centralView, 34, 0);
+    writeUint16(centralView, 36, 0);
+    writeUint32(centralView, 38, 0);
+    writeUint32(centralView, 42, offset);
+    centralHeader.set(nameBytes, 46);
+    centralParts.push(centralHeader);
+
+    offset += localHeader.length + data.length;
+  });
+
+  const centralDirectory = concatBytes(centralParts);
+  const end = new Uint8Array(22);
+  const endView = new DataView(end.buffer);
+  writeUint32(endView, 0, 0x06054b50);
+  writeUint16(endView, 8, entries.length);
+  writeUint16(endView, 10, entries.length);
+  writeUint32(endView, 12, centralDirectory.length);
+  writeUint32(endView, 16, offset);
+  return concatBytes([...localParts, centralDirectory, end]);
+};
 
 export default function TableSection({ 
   waybills, 
@@ -47,6 +220,9 @@ export default function TableSection({
   // Selected checkboxes
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [printLabelMenuOpen, setPrintLabelMenuOpen] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [attachmentExportModalOpen, setAttachmentExportModalOpen] = useState(false);
+  const [selectedAttachmentTypes, setSelectedAttachmentTypes] = useState<string[]>([]);
   const [systemLabelPanelOpen, setSystemLabelPanelOpen] = useState(false);
   const [systemLabelDownloadMode, setSystemLabelDownloadMode] = useState<'split' | 'continuous'>('split');
   const [batchMenuOpen, setBatchMenuOpen] = useState(false);
@@ -56,6 +232,7 @@ export default function TableSection({
   const [activeDetailWaybill, setActiveDetailWaybill] = useState<Waybill | null>(null);
   const [importInfoWaybill, setImportInfoWaybill] = useState<Waybill | null>(null);
   const [importInfoFileName, setImportInfoFileName] = useState('');
+  const [importInfoAttachment, setImportInfoAttachment] = useState<WaybillAttachment | null>(null);
   const [editingWaybill, setEditingWaybill] = useState<Waybill | null>(null);
   const [editDraft, setEditDraft] = useState<Partial<Waybill>>({});
 
@@ -123,6 +300,9 @@ export default function TableSection({
     const timeB = new Date(b.createTime).getTime();
     return sortAsc ? timeA - timeB : timeB - timeA;
   });
+  const exportScopeWaybills = selectedIds.length > 0
+    ? waybills.filter(item => selectedIds.includes(item.id))
+    : sortedWaybills;
   const selectedPrintWaybills = waybills.filter(item => selectedIds.includes(item.id));
   const systemLabelWatermarks = Array.from({ length: 28 }, (_, index) => index);
 
@@ -167,6 +347,154 @@ export default function TableSection({
     addToast('搜索条件已重置，显示全量日志', 'info');
   };
 
+  const safeFileName = (name: string) => name.replace(/[\\/:*?"<>|]/g, '_');
+
+  const downloadBlobFile = (fileName: string, blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = safeFileName(fileName);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadTextFile = (fileName: string, content: string, type = 'text/csv;charset=utf-8') => {
+    const blob = new Blob([content], { type });
+    downloadBlobFile(fileName, blob);
+  };
+
+  const downloadDataUrlFile = (fileName: string, dataUrl: string) => {
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = safeFileName(fileName);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  const formatFileSize = (size: number) => {
+    if (size >= 1024 * 1024) return `${(size / 1024 / 1024).toFixed(2)} MB`;
+    if (size >= 1024) return `${(size / 1024).toFixed(1)} KB`;
+    return `${size} B`;
+  };
+
+  const csvCell = (value: string | number | boolean | undefined | null) => {
+    const text = value === undefined || value === null ? '' : String(value);
+    return `"${text.replace(/"/g, '""')}"`;
+  };
+
+  const handleExportWaybillCsv = () => {
+    if (exportScopeWaybills.length === 0) {
+      addToast('当前没有可导出的运单数据', 'warning');
+      return;
+    }
+
+    const header = ['运单号', 'FBA编号', '客户名称', '渠道', '分组号', '国家', '仓库/货站', '件数', '状态', '创建时间', '备注'];
+    const rows = exportScopeWaybills.map(item => [
+      item.id,
+      item.fbaCode,
+      item.customerName || '',
+      item.carrier,
+      item.groupCode,
+      item.country,
+      item.station,
+      item.packagesCount,
+      item.status,
+      item.createTime,
+      item.remarks || '',
+    ]);
+    const csv = `\uFEFF${[header, ...rows].map(row => row.map(csvCell).join(',')).join('\n')}`;
+    downloadTextFile(`运单导出_${new Date().toISOString().slice(0, 10)}.csv`, csv);
+    setExportMenuOpen(false);
+    addToast(`已导出 ${exportScopeWaybills.length} 条运单 CSV`, 'success');
+  };
+
+  const openAttachmentExportModal = () => {
+    setExportMenuOpen(false);
+    setSelectedAttachmentTypes([]);
+    setAttachmentExportModalOpen(true);
+  };
+
+  const toggleAttachmentType = (type: string) => {
+    setSelectedAttachmentTypes(prev =>
+      prev.includes(type) ? prev.filter(item => item !== type) : [...prev, type]
+    );
+  };
+
+  const handleExportAttachments = () => {
+    if (selectedAttachmentTypes.length === 0) {
+      addToast('请选择附件类型', 'warning');
+      return;
+    }
+
+    if (exportScopeWaybills.length === 0) {
+      addToast('当前没有可导出的运单附件', 'warning');
+      return;
+    }
+
+    const attachments = exportScopeWaybills.flatMap(waybill =>
+      (waybill.attachments || []).map(attachment => ({ waybill, attachment }))
+    );
+
+    if (attachments.length === 0) {
+      addToast('当前范围内没有已上传附件可导出', 'warning');
+      setExportMenuOpen(false);
+      return;
+    }
+
+    const attachmentTypeText = selectedAttachmentTypes.join('、');
+    const manifestHeader = ['运单号', '导出附件类型', '附件名称', '文件类型', '文件大小', '上传时间', '是否包含文件内容'];
+    const manifestRows = attachments.map(({ waybill, attachment }) => [
+      waybill.id,
+      attachmentTypeText,
+      attachment.name,
+      attachment.type || 'application/octet-stream',
+      formatFileSize(attachment.size),
+      attachment.uploadedAt,
+      attachment.dataUrl ? '是' : '否',
+    ]);
+    const manifest = `\uFEFF${[manifestHeader, ...manifestRows].map(row => row.map(csvCell).join(',')).join('\n')}`;
+    downloadTextFile(`附件导出清单_${new Date().toISOString().slice(0, 10)}.csv`, manifest);
+
+    const downloadableAttachments = attachments.filter(({ attachment }) => Boolean(attachment.dataUrl));
+    downloadableAttachments.forEach(({ waybill, attachment }) => {
+      downloadDataUrlFile(`${waybill.id}_${attachment.name}`, attachment.dataUrl!);
+    });
+
+    setAttachmentExportModalOpen(false);
+    setExportMenuOpen(false);
+    setSelectedAttachmentTypes([]);
+    addToast(`已导出 ${attachments.length} 个附件记录，${downloadableAttachments.length} 个原始附件文件`, 'success');
+  };
+
+  const handleImportInfoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const attachment: WaybillAttachment = {
+        id: `att-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+        size: file.size,
+        uploadedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        dataUrl: typeof reader.result === 'string' ? reader.result : undefined,
+      };
+      setImportInfoFileName(file.name);
+      setImportInfoAttachment(attachment);
+      addToast(`已读取附件：${file.name}`, 'info');
+    };
+    reader.onerror = () => {
+      setImportInfoFileName('');
+      setImportInfoAttachment(null);
+      addToast('附件读取失败，请重新上传', 'warning');
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Actions
   const handleSyncFBA = () => {
     addToast('正在对接亚马逊 FBA 路由中心进行远端口径对账...', 'info');
@@ -201,6 +529,7 @@ export default function TableSection({
     }
 
     setPrintLabelMenuOpen(false);
+    setSystemLabelDownloadMode('split');
     setSystemLabelPanelOpen(true);
   };
 
@@ -232,18 +561,24 @@ export default function TableSection({
 
   const handleConfirmImportInfo = () => {
     if (!importInfoWaybill) return;
-    if (!importInfoFileName) {
+    if (!importInfoFileName || !importInfoAttachment) {
       addToast('请先上传运单信息文件', 'warning');
       return;
     }
 
-    onUpdateWaybill(importInfoWaybill.id, { hasUploadedInvoice: true });
+    const nextAttachments = [
+      ...(importInfoWaybill.attachments || []).filter(item => item.name !== importInfoAttachment.name),
+      importInfoAttachment,
+    ];
+    const patch = { hasUploadedInvoice: true, attachments: nextAttachments };
+    onUpdateWaybill(importInfoWaybill.id, patch);
     if (activeDetailWaybill?.id === importInfoWaybill.id) {
-      setActiveDetailWaybill({ ...activeDetailWaybill, hasUploadedInvoice: true });
+      setActiveDetailWaybill({ ...activeDetailWaybill, ...patch });
     }
     addToast(`运单 ${importInfoWaybill.id} 信息导入成功`, 'success');
     setImportInfoWaybill(null);
     setImportInfoFileName('');
+    setImportInfoAttachment(null);
   };
 
   const openWaybillDetail = (waybill: Waybill) => {
@@ -258,6 +593,50 @@ export default function TableSection({
   const getPhone = (waybill: Waybill) => waybill.phone || '9177503147';
   const getAddress1 = (waybill: Waybill) => waybill.address1 || (waybill.country === '美国' ? '2406 169th Street' : 'Warehouse receiving address');
   const getWarehouseCode = (waybill: Waybill) => waybill.warehouseCode || '私人地址';
+
+  const getSystemLabelShipments = (): SystemLabelShipment[] => selectedPrintWaybills.map(waybill => ({
+    orderNo: waybill.id,
+    customerNo: getCustomerOrderNo(waybill),
+    service: waybill.carrier,
+    recipient: getConsignee(waybill),
+    pieces: waybill.packagesCount || 1,
+  }));
+
+  const handlePrintSystemLabelPdf = () => {
+    const labelShipments = getSystemLabelShipments();
+    if (labelShipments.length === 0) {
+      addToast('请在下方列表中勾选要打印系统标签的运单', 'warning');
+      return;
+    }
+
+    addToast(`正在打印 ${labelShipments.length} 张系统标签`, 'info');
+  };
+
+  const handleDownloadSystemLabels = () => {
+    const labelShipments = getSystemLabelShipments();
+    if (labelShipments.length === 0) {
+      addToast('请在下方列表中勾选要下载系统标签的运单', 'warning');
+      return;
+    }
+
+    const orderName = labelShipments.map(shipment => safeFileName(shipment.orderNo)).join(',');
+
+    if (labelShipments.length > 1 && systemLabelDownloadMode === 'split') {
+      const entries = labelShipments.map(shipment => ({
+        name: `${safeFileName(shipment.orderNo)}+${safeFileName(shipment.customerNo)}.pdf`,
+        data: createLabelPdf([shipment]),
+      }));
+      downloadBlobFile(`${orderName}.zip`, new Blob([createZip(entries)], { type: 'application/zip' }));
+      addToast(`正在下载 ${labelShipments.length} 票分割标签ZIP`, 'success');
+      return;
+    }
+
+    const filename = labelShipments.length === 1
+      ? `${safeFileName(labelShipments[0].orderNo)}+${safeFileName(labelShipments[0].customerNo)}.pdf`
+      : `${orderName}.pdf`;
+    downloadBlobFile(filename, new Blob([createLabelPdf(labelShipments)], { type: 'application/pdf' }));
+    addToast(`正在下载 ${labelShipments.length} 张系统标签PDF`, 'success');
+  };
 
   const startEditingBasicInfo = (waybill: Waybill) => {
     setEditingWaybill(waybill);
@@ -399,6 +778,7 @@ export default function TableSection({
 
   const detailTabs = ['基础信息', '货物信息', '费用信息', '运踪信息', '其他信息', '中转信息'];
   const tradeModeOptions = ['9610', '9710', '9810', '0110', '1039'];
+  const attachmentTypeOptions = ['报关', 'POD', '核对件', '其他', '底单', '税金单', 'ISA', '申报信息', '提单'];
   const itemAttributeOptions = ['带电', '带磁', '普货', '液体', '粉末', '木制品', '危险品', '纺织品', '木架', '钢铁铝', '冲货类', '电子类', '灯类', '自行车类', '鼠标键盘'];
   const fieldClass = "h-8 w-full rounded border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500";
   const disabledFieldClass = "h-8 w-full rounded border border-slate-200 bg-slate-50 px-3 text-xs text-slate-400 outline-none";
@@ -631,6 +1011,7 @@ export default function TableSection({
               type="button"
               onClick={() => {
                 setPrintLabelMenuOpen(prev => !prev);
+                setExportMenuOpen(false);
                 setBatchMenuOpen(false);
               }}
               className="flex items-center gap-1 rounded bg-[#004bb1] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#003b91] transition-all"
@@ -668,6 +1049,7 @@ export default function TableSection({
               type="button"
               onClick={() => {
                 setPrintLabelMenuOpen(false);
+                setExportMenuOpen(false);
                 setBatchMenuOpen(prev => {
                   const nextOpen = !prev;
                   return nextOpen;
@@ -700,14 +1082,41 @@ export default function TableSection({
           </div>
 
           {/* 导出 */}
-          <button
-            type="button"
-            onClick={() => addToast('正在导出符合天逻辑对账口径的 CSV 运单日志...', 'success')}
-            className="flex items-center gap-1 rounded bg-[#004bb1] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#003b91] transition-all"
-          >
-            <span>导出</span>
-            <ChevronDown className="h-3 w-3" />
-          </button>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setPrintLabelMenuOpen(false);
+                setBatchMenuOpen(false);
+                setExportMenuOpen(prev => !prev);
+              }}
+              className="flex items-center gap-1 rounded bg-[#004bb1] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#003b91] transition-all"
+            >
+              <span>导出</span>
+              <ChevronDown className="h-3 w-3" />
+            </button>
+
+            {exportMenuOpen && (
+              <div className="absolute left-0 top-full z-30 mt-1 w-36 rounded-sm border border-slate-200 bg-white py-1 shadow-xl">
+                <button
+                  type="button"
+                  onClick={handleExportWaybillCsv}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-blue-50 hover:text-[#004bb1]"
+                >
+                  <FileDown className="h-3.5 w-3.5" />
+                  <span>运单明细导出</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={openAttachmentExportModal}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-blue-50 hover:text-[#004bb1]"
+                >
+                  <FileDown className="h-3.5 w-3.5" />
+                  <span>附件导出</span>
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* 批量添加 */}
           <button
@@ -1133,6 +1542,7 @@ export default function TableSection({
                       onClick={() => {
                         setImportInfoWaybill(activeDetailWaybill);
                         setImportInfoFileName('');
+                        setImportInfoAttachment(null);
                       }}
                       className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                     >
@@ -1259,8 +1669,14 @@ export default function TableSection({
       )}
 
       {systemLabelPanelOpen && (
-        <div className="fixed inset-0 z-[85] flex items-start justify-center bg-slate-950/45 pt-[50px] text-slate-700">
-          <div className="relative flex h-[505px] w-[920px] flex-col overflow-hidden rounded-sm bg-white shadow-2xl">
+        <div
+          className="fixed inset-0 z-[85] flex items-start justify-center bg-slate-950/45 pt-[50px] text-slate-700"
+          onClick={() => setSystemLabelPanelOpen(false)}
+        >
+          <div
+            className="relative flex h-[505px] w-[920px] flex-col overflow-hidden rounded-sm bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="relative z-10 border-b border-slate-200 px-5 py-4">
               <h3 className="text-lg font-bold text-slate-900">打印标签</h3>
             </div>
@@ -1310,29 +1726,31 @@ export default function TableSection({
             </div>
 
             <div className="relative z-10 bg-white px-5 py-6">
-              <div className="mb-5 flex items-center justify-center gap-5 text-sm text-slate-600">
-                <span>下载方式：</span>
-                <label className="flex cursor-pointer items-center gap-1.5">
-                  <input
-                    type="radio"
-                    name="systemLabelDownloadMode"
-                    checked={systemLabelDownloadMode === 'split'}
-                    onChange={() => setSystemLabelDownloadMode('split')}
-                    className="h-3.5 w-3.5 text-blue-600"
-                  />
-                  <span>多票分割</span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-1.5">
-                  <input
-                    type="radio"
-                    name="systemLabelDownloadMode"
-                    checked={systemLabelDownloadMode === 'continuous'}
-                    onChange={() => setSystemLabelDownloadMode('continuous')}
-                    className="h-3.5 w-3.5 text-blue-600"
-                  />
-                  <span>多票连续</span>
-                </label>
-              </div>
+              {selectedPrintWaybills.length > 1 && (
+                <div className="mb-5 flex items-center justify-center gap-5 text-sm text-slate-600">
+                  <span>下载方式：</span>
+                  <label className="flex cursor-pointer items-center gap-1.5">
+                    <input
+                      type="radio"
+                      name="systemLabelDownloadMode"
+                      checked={systemLabelDownloadMode === 'split'}
+                      onChange={() => setSystemLabelDownloadMode('split')}
+                      className="h-3.5 w-3.5 text-blue-600"
+                    />
+                    <span>多票分割</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-1.5">
+                    <input
+                      type="radio"
+                      name="systemLabelDownloadMode"
+                      checked={systemLabelDownloadMode === 'continuous'}
+                      onChange={() => setSystemLabelDownloadMode('continuous')}
+                      className="h-3.5 w-3.5 text-blue-600"
+                    />
+                    <span>多票连续</span>
+                  </label>
+                </div>
+              )}
               <div className="flex justify-center gap-3">
                 <button
                   type="button"
@@ -1343,14 +1761,14 @@ export default function TableSection({
                 </button>
                 <button
                   type="button"
-                  onClick={() => addToast(`正在打印 ${selectedPrintWaybills.length} 张系统标签`, 'info')}
+                  onClick={handlePrintSystemLabelPdf}
                   className="rounded bg-[#004bb1] px-5 py-1.5 text-xs font-bold text-white hover:bg-[#003b91]"
                 >
                   打印
                 </button>
                 <button
                   type="button"
-                  onClick={() => addToast(`正在下载 ${selectedPrintWaybills.length} 张系统标签PDF`, 'success')}
+                  onClick={handleDownloadSystemLabels}
                   className="rounded bg-[#004bb1] px-5 py-1.5 text-xs font-bold text-white hover:bg-[#003b91]"
                 >
                   下载PDF
@@ -1410,6 +1828,55 @@ export default function TableSection({
         </div>
       )}
 
+      {attachmentExportModalOpen && (
+        <div className="fixed inset-0 z-[70] flex items-start justify-center bg-slate-950/50 pt-24">
+          <div className="w-[520px] rounded-sm bg-white shadow-2xl">
+            <div className="border-b border-slate-200 px-6 py-4">
+              <h3 className="text-base font-bold text-slate-900">附件导出</h3>
+            </div>
+            <div className="px-6 py-7 text-xs">
+              <div className="flex items-start gap-3">
+                <span className="mt-1 w-20 shrink-0 text-right font-medium text-slate-700">
+                  <span className="mr-1 text-red-500">*</span>附件类型：
+                </span>
+                <div className="grid flex-1 grid-cols-3 gap-x-12 gap-y-3">
+                  {attachmentTypeOptions.map(type => (
+                    <label key={type} className="flex cursor-pointer items-center gap-2 text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={selectedAttachmentTypes.includes(type)}
+                        onChange={() => toggleAttachmentType(type)}
+                        className="h-3.5 w-3.5 rounded border-slate-300 text-[#004bb1] focus:ring-[#004bb1]"
+                      />
+                      <span>{type}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
+              <button
+                type="button"
+                onClick={handleExportAttachments}
+                className="rounded bg-[#004bb1] px-5 py-1.5 text-xs font-bold text-white hover:bg-[#003b91]"
+              >
+                确定
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAttachmentExportModalOpen(false);
+                  setSelectedAttachmentTypes([]);
+                }}
+                className="rounded border border-slate-300 bg-white px-5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {importInfoWaybill && (
         <div className="fixed inset-0 z-[70] flex items-start justify-center bg-slate-950/50 pt-32">
           <div className="w-[520px] rounded-sm bg-white shadow-2xl">
@@ -1431,10 +1898,7 @@ export default function TableSection({
                     type="file"
                     accept=".xls,.xlsx,.csv"
                     className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) setImportInfoFileName(file.name);
-                    }}
+                    onChange={handleImportInfoFileChange}
                   />
                 </label>
                 {importInfoFileName && (
@@ -1471,6 +1935,7 @@ export default function TableSection({
                 onClick={() => {
                   setImportInfoWaybill(null);
                   setImportInfoFileName('');
+                  setImportInfoAttachment(null);
                 }}
                 className="rounded border border-slate-300 bg-white px-5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
               >

@@ -1,3 +1,12 @@
+export interface WaybillAttachment {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  uploadedAt: string;
+  dataUrl?: string;
+}
+
 export interface Waybill {
   id: string; // e.g. HD2606161063
   fbaCode: string; // e.g. FBA19G6M4C7B
@@ -15,6 +24,7 @@ export interface Waybill {
   orderWeek?: string;
   insurance: boolean;
   hasUploadedInvoice?: boolean;
+  attachments?: WaybillAttachment[];
   remarks?: string;
   customerName?: string;
   customerOrderNo?: string;
