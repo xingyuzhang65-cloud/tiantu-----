@@ -1,6 +1,0 @@
-{
-  "name": "天图通逊物流管理系统",
-  "description": "天图通逊跨境物流与智能运单管理系统，提供单票/多票发货、Excel批量导入、运单查询追踪和多仓协调功能。",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
