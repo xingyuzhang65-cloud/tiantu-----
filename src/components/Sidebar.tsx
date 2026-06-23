@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { 
-  FileText, Warehouse, Box, ClipboardList, CreditCard, 
-  MessageSquareCode, BarChart3, Settings, Users, 
+import {
+  FileText, Warehouse, Box, ClipboardList, CreditCard,
+  MessageSquareCode, BarChart3, Settings, Users,
   DownloadCloud, Cpu, Megaphone, ChevronDown, ChevronRight,
-  TrendingUp, Compass, ArrowRightLeft, Layers, Wrench, Printer, Package
+  TrendingUp, ArrowRightLeft, Layers, Wrench, Printer, Package,
+  PackageOpen, SlidersHorizontal
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -14,6 +15,7 @@ interface SidebarProps {
 export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProps) {
   const [activeRail, setActiveRail] = useState('单据');
   const [waybillExpanded, setWaybillExpanded] = useState(true);
+  const [configExpanded, setConfigExpanded] = useState(true);
 
   // Outer rail menu items
   const railItems = [
@@ -92,121 +94,183 @@ export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProp
           </div>
         </div>
 
-        {/* Submenu and groups */}
+        {/* Submenu — dynamic based on activeRail */}
         <div className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
-          {/* Group 1: 运单管理 (Collapsible) */}
-          <div className="space-y-1">
-            <button
-              id="btn-fold-waybills"
-              onClick={() => setWaybillExpanded(!waybillExpanded)}
-              className="flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200/50"
-            >
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-blue-600" />
-                <span>运单</span>
-              </div>
-              {waybillExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            </button>
+          {activeRail === '单据' && (
+            <>
+              {/* Group 1: 运单管理 (Collapsible) */}
+              <div className="space-y-1">
+                <button
+                  id="btn-fold-waybills"
+                  onClick={() => setWaybillExpanded(!waybillExpanded)}
+                  className="flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200/50"
+                >
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-blue-600" />
+                    <span>运单</span>
+                  </div>
+                  {waybillExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                </button>
 
-            {waybillExpanded && (
-              <div className="ml-4 pl-2 border-l border-slate-200 space-y-0.5">
-                {[
-                  { name: '运单', count: 129 },
-                  { name: '跟单运单', count: 0 },
-                  { name: '业务运单', count: 2 },
-                ].map((subItem) => {
-                  const isSelected = currentSubView === subItem.name;
-                  return (
-                    <button
-                      key={subItem.name}
-                      id={`submenu-item-${subItem.name}`}
-                      onClick={() => onSubViewChange(subItem.name)}
-                      className={`flex w-full items-center justify-between rounded px-3 py-1.5 text-xs transition-colors duration-150 ${
-                        isSelected
-                          ? 'bg-blue-50 text-blue-600 font-semibold'
-                          : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-800'
-                      }`}
-                    >
-                      <span>{subItem.name}</span>
-                      {subItem.count > 0 && (
-                        <span className={`rounded-full px-1.5 text-[9px] ${
-                          isSelected ? 'bg-blue-150 text-blue-700 font-bold' : 'bg-slate-200 text-slate-500'
-                        }`}>
-                          {subItem.count}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+                {waybillExpanded && (
+                  <div className="ml-4 pl-2 border-l border-slate-200 space-y-0.5">
+                    {[
+                      { name: '运单', count: 129 },
+                      { name: '跟单运单', count: 0 },
+                      { name: '业务运单', count: 2 },
+                    ].map((subItem) => {
+                      const isSelected = currentSubView === subItem.name;
+                      return (
+                        <button
+                          key={subItem.name}
+                          id={`submenu-item-${subItem.name}`}
+                          onClick={() => onSubViewChange(subItem.name)}
+                          className={`flex w-full items-center justify-between rounded px-3 py-1.5 text-xs transition-colors duration-150 ${
+                            isSelected
+                              ? 'bg-blue-50 text-blue-600 font-semibold'
+                              : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-800'
+                          }`}
+                        >
+                          <span>{subItem.name}</span>
+                          {subItem.count > 0 && (
+                            <span className={`rounded-full px-1.5 text-[9px] ${
+                              isSelected ? 'bg-blue-150 text-blue-700 font-bold' : 'bg-slate-200 text-slate-500'
+                            }`}>
+                              {subItem.count}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* Group 2: 提单 */}
-          <div className="space-y-1">
-            <div className="flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium text-slate-700 cursor-pointer hover:bg-slate-200/50">
-              <div className="flex items-center gap-2">
-                <Layers className="h-4 w-4 text-slate-500" />
-                <span>提单</span>
+              <div className="space-y-1">
+                <div className="flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium text-slate-700 cursor-pointer hover:bg-slate-200/50">
+                  <div className="flex items-center gap-2">
+                    <Layers className="h-4 w-4 text-slate-500" />
+                    <span>提单</span>
+                  </div>
+                  <ChevronRight className="h-3 w-3 text-slate-400" />
+                </div>
               </div>
-              <ChevronRight className="h-3 w-3 text-slate-400" />
+
+              <div className="space-y-1">
+                <div className="flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium text-slate-700 cursor-pointer hover:bg-slate-200/50">
+                  <div className="flex items-center gap-2">
+                    <Wrench className="h-4 w-4 text-slate-500" />
+                    <span>工单</span>
+                  </div>
+                  <ChevronRight className="h-3 w-3 text-slate-400" />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium text-slate-700 cursor-pointer hover:bg-slate-200/50">
+                  <div className="flex items-center gap-2">
+                    <Printer className="h-4 w-4 text-slate-500" />
+                    <span>打单</span>
+                  </div>
+                  <ChevronRight className="h-3 w-3 text-slate-400" />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium text-slate-700 cursor-pointer hover:bg-slate-200/50">
+                  <div className="flex items-center gap-2">
+                    <Warehouse className="h-4 w-4 text-slate-500" />
+                    <span>预留仓</span>
+                  </div>
+                  <ChevronRight className="h-3 w-3 text-slate-400" />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium text-slate-700 cursor-pointer hover:bg-slate-200/50">
+                  <div className="flex items-center gap-2">
+                    <ArrowRightLeft className="h-4 w-4 text-slate-500" />
+                    <span className="truncate">海外中转单管理</span>
+                  </div>
+                  <ChevronRight className="h-3 w-3 text-slate-400" />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium text-slate-700 cursor-pointer hover:bg-slate-200/50">
+                  <div className="flex items-center gap-2">
+                    <Package className="h-4 w-4 text-slate-500" />
+                    <span>货件管理</span>
+                  </div>
+                  <ChevronRight className="h-3 w-3 text-slate-400" />
+                </div>
+              </div>
+            </>
+          )}
+
+          {activeRail === '产品' && (
+            <div className="space-y-1">
+              {/* 一级菜单：产品服务 */}
+              <button
+                id="submenu-item-产品服务"
+                onClick={() => onSubViewChange('产品服务')}
+                className={`flex w-full items-center gap-2 rounded px-3 py-2 text-sm font-medium transition-colors duration-150 ${
+                  currentSubView === '产品服务'
+                    ? 'bg-blue-50 text-blue-600 font-semibold'
+                    : 'text-slate-700 hover:bg-slate-200/50'
+                }`}
+              >
+                <PackageOpen className="h-4 w-4" />
+                <span>产品服务</span>
+              </button>
+
+              {/* 一级菜单：产品配置 (collapsible → 二级：贸易方式) */}
+              <div className="space-y-1">
+                <button
+                  id="btn-fold-config"
+                  onClick={() => setConfigExpanded(!configExpanded)}
+                  className="flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200/50"
+                >
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal className="h-4 w-4 text-slate-600" />
+                    <span>产品配置</span>
+                  </div>
+                  {configExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                </button>
+
+                {configExpanded && (
+                  <div className="ml-4 pl-2 border-l border-slate-200 space-y-0.5">
+                    {[
+                      { name: '贸易方式', viewKey: '贸易方式校验规则查询' },
+                    ].map((subItem) => {
+                      const isSelected = currentSubView === subItem.viewKey;
+                      return (
+                        <button
+                          key={subItem.name}
+                          id={`submenu-item-${subItem.name}`}
+                          onClick={() => onSubViewChange(subItem.viewKey)}
+                          className={`flex w-full items-center justify-between rounded px-3 py-1.5 text-xs transition-colors duration-150 ${
+                            isSelected
+                              ? 'bg-blue-50 text-blue-600 font-semibold'
+                              : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-800'
+                          }`}
+                        >
+                          <span>{subItem.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Group 3: 工单 */}
-          <div className="space-y-1">
-            <div className="flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium text-slate-700 cursor-pointer hover:bg-slate-200/50">
-              <div className="flex items-center gap-2">
-                <Wrench className="h-4 w-4 text-slate-500" />
-                <span>工单</span>
-              </div>
-              <ChevronRight className="h-3 w-3 text-slate-400" />
+          {/* Fallback for other rails without a configured submenu */}
+          {activeRail !== '单据' && activeRail !== '产品' && (
+            <div className="px-3 py-4 text-center text-xs text-slate-400">
+              暂无子菜单
             </div>
-          </div>
-
-          {/* Group 4: 打单 */}
-          <div className="space-y-1">
-            <div className="flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium text-slate-700 cursor-pointer hover:bg-slate-200/50">
-              <div className="flex items-center gap-2">
-                <Printer className="h-4 w-4 text-slate-500" />
-                <span>打单</span>
-              </div>
-              <ChevronRight className="h-3 w-3 text-slate-400" />
-            </div>
-          </div>
-
-          {/* Group 5: 预留仓 */}
-          <div className="space-y-1">
-            <div className="flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium text-slate-700 cursor-pointer hover:bg-slate-200/50">
-              <div className="flex items-center gap-2">
-                <Warehouse className="h-4 w-4 text-slate-500" />
-                <span>预留仓</span>
-              </div>
-              <ChevronRight className="h-3 w-3 text-slate-400" />
-            </div>
-          </div>
-
-          {/* Group 6: 海外中转单管理 */}
-          <div className="space-y-1">
-            <div className="flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium text-slate-700 cursor-pointer hover:bg-slate-200/50">
-              <div className="flex items-center gap-2">
-                <ArrowRightLeft className="h-4 w-4 text-slate-500" />
-                <span className="truncate">海外中转单管理</span>
-              </div>
-              <ChevronRight className="h-3 w-3 text-slate-400" />
-            </div>
-          </div>
-
-          {/* Group 7: 货件管理 */}
-          <div className="space-y-1">
-            <div className="flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium text-slate-700 cursor-pointer hover:bg-slate-200/50">
-              <div className="flex items-center gap-2">
-                <Package className="h-4 w-4 text-slate-500" />
-                <span>货件管理</span>
-              </div>
-              <ChevronRight className="h-3 w-3 text-slate-400" />
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Lower helpful tips */}

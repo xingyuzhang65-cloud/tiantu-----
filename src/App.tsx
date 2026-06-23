@@ -303,7 +303,7 @@ export default function App() {
             onUpdateWaybill={handleUpdateWaybill}
             addToast={addToast}
           />
-        ) : currentTab === '贸易方式配置' ? (
+        ) : currentTab === '贸易方式配置' || currentTab === '贸易方式校验规则查询' ? (
           <RuleConfigPage addToast={addToast} />
         ) : (
           /* General Constant Parameter manager and settings views */

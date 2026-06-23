@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, ChevronDown, Check } from 'lucide-react';
-import { TradeModeRule, StationOption, ServiceOption, STATION_OPTIONS, SERVICE_OPTIONS } from '../types';
+import { TradeModeRule, STATION_OPTIONS, SERVICE_OPTIONS } from '../types';
 
 interface RuleFormModalProps {
   onClose: () => void;
@@ -15,8 +15,6 @@ export default function RuleFormModal({ onClose, onSave, editRule, addToast }: R
   // Form state
   const [stationCodes, setStationCodes] = useState<string[]>(editRule?.stationCodes || []);
   const [serviceCodes, setServiceCodes] = useState<string[]>(editRule?.serviceCodes || []);
-  const [isRequired, setIsRequired] = useState<boolean | null>(editRule?.isRequired ?? null);
-
   // Dropdown states
   const [stationDropdownOpen, setStationDropdownOpen] = useState(false);
   const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false);
@@ -97,10 +95,6 @@ export default function RuleFormModal({ onClose, onSave, editRule, addToast }: R
       newErrors.serviceCodes = '请至少选择一个服务类型';
     }
 
-    if (isRequired === null) {
-      newErrors.isRequired = '请选择贸易方式是否必填';
-    }
-
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       addToast('请完善表单中的必填项', 'warning');
@@ -111,7 +105,7 @@ export default function RuleFormModal({ onClose, onSave, editRule, addToast }: R
       id: editRule?.id,
       stationCodes,
       serviceCodes,
-      isRequired: isRequired ?? true,
+      isRequired: true,
       status: editRule?.status ?? true,
       updateUser: '天朗（付豪）',
     });
@@ -314,44 +308,6 @@ export default function RuleFormModal({ onClose, onSave, editRule, addToast }: R
                 <span className="text-[9px] text-red-500">{errors.serviceCodes}</span>
               )}
             </div>
-          </fieldset>
-
-          {/* 3. 是否必填贸易方式 — Radio */}
-          <fieldset>
-            <legend className="block text-[11px] font-semibold text-slate-600 mb-2">
-              <span className="text-red-500 mr-1">*</span>是否必填贸易方式
-            </legend>
-            <div className="flex items-center gap-6">
-              <label className="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer">
-                <input
-                  type="radio"
-                  name="isRequired"
-                  checked={isRequired === true}
-                  onChange={() => {
-                    setIsRequired(true);
-                    if (errors.isRequired) setErrors(prev => ({ ...prev, isRequired: '' }));
-                  }}
-                  className="h-3.5 w-3.5 text-blue-600"
-                />
-                <span>是</span>
-              </label>
-              <label className="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer">
-                <input
-                  type="radio"
-                  name="isRequired"
-                  checked={isRequired === false}
-                  onChange={() => {
-                    setIsRequired(false);
-                    if (errors.isRequired) setErrors(prev => ({ ...prev, isRequired: '' }));
-                  }}
-                  className="h-3.5 w-3.5 text-blue-600"
-                />
-                <span>否</span>
-              </label>
-            </div>
-            {errors.isRequired && (
-              <span className="text-[9px] text-red-500 mt-1 block">{errors.isRequired}</span>
-            )}
           </fieldset>
 
         </form>

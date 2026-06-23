@@ -161,8 +161,19 @@ interface TradeModeRule {
   updateTime: string;
 }
 
-let ruleIdCounter = 1;
-const tradeModeRules: TradeModeRule[] = [];
+let ruleIdCounter = 2;
+const tradeModeRules: TradeModeRule[] = [
+  {
+    id: 1,
+    stationCodes: ['tangxia'],
+    serviceCodes: ['us_air_express', 'us_sea_truck'],
+    isRequired: true,
+    status: true,
+    updateUser: '天朗（付豪）',
+    createTime: '2026-06-10 09:15:30',
+    updateTime: '2026-06-20 14:22:10',
+  },
+];
 
 function now(): string {
   return new Date().toISOString().slice(0, 19).replace("T", " ");
