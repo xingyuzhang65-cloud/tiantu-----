@@ -1,7 +1,101 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Trash2, PenLine } from 'lucide-react';
 import { TradeModeRule, STATION_OPTIONS, SERVICE_OPTIONS } from '../types';
 import RuleFormModal from './RuleFormModal';
+
+// ─── Mock data for static deployments (GitHub Pages) ──────────────────────
+const MOCK_RULES: TradeModeRule[] = [
+  {
+    id: 1,
+    stationCodes: ['tangxia'],
+    serviceCodes: ['us_air_express', 'us_sea_truck'],
+    isRequired: true,
+    status: true,
+    updateUser: '天朗（付豪）',
+    createTime: '2026-06-10 09:15:30',
+    updateTime: '2026-06-20 14:22:10',
+  },
+  {
+    id: 2,
+    stationCodes: ['tangxia'],
+    serviceCodes: ['de_air', 'uk_sea'],
+    isRequired: true,
+    status: true,
+    updateUser: '天朗（付豪）',
+    createTime: '2026-06-12 10:30:00',
+    updateTime: '2026-06-18 16:45:22',
+  },
+  {
+    id: 3,
+    stationCodes: ['guangzhou'],
+    serviceCodes: ['us_air_express', 'us_sea_truck', 'de_air'],
+    isRequired: true,
+    status: true,
+    updateUser: '张运营',
+    createTime: '2026-06-11 14:20:15',
+    updateTime: '2026-06-21 09:10:05',
+  },
+  {
+    id: 4,
+    stationCodes: ['guangzhou'],
+    serviceCodes: ['uk_sea', 'japan_express'],
+    isRequired: false,
+    status: true,
+    updateUser: '张运营',
+    createTime: '2026-06-13 08:55:40',
+    updateTime: '2026-06-13 08:55:40',
+  },
+  {
+    id: 5,
+    stationCodes: ['yiwu'],
+    serviceCodes: ['yiwu_tiantu'],
+    isRequired: true,
+    status: true,
+    updateUser: '李客服',
+    createTime: '2026-06-14 11:05:00',
+    updateTime: '2026-06-19 13:30:18',
+  },
+  {
+    id: 6,
+    stationCodes: ['yiwu'],
+    serviceCodes: ['us_sea_truck', 'uk_sea'],
+    isRequired: false,
+    status: false,
+    updateUser: '李客服',
+    createTime: '2026-06-15 16:40:22',
+    updateTime: '2026-06-22 10:20:33',
+  },
+  {
+    id: 7,
+    stationCodes: ['tangxia', 'guangzhou'],
+    serviceCodes: ['us_air_express', 'us_sea_truck', 'de_air', 'uk_sea'],
+    isRequired: true,
+    status: true,
+    updateUser: '天朗（付豪）',
+    createTime: '2026-06-16 09:25:10',
+    updateTime: '2026-06-23 08:15:45',
+  },
+  {
+    id: 8,
+    stationCodes: ['tangxia', 'guangzhou', 'yiwu'],
+    serviceCodes: ['japan_express'],
+    isRequired: false,
+    status: true,
+    updateUser: '张运营',
+    createTime: '2026-06-17 13:10:30',
+    updateTime: '2026-06-17 13:10:30',
+  },
+  {
+    id: 9,
+    stationCodes: ['guangzhou', 'yiwu'],
+    serviceCodes: ['yiwu_tiantu', 'de_air'],
+    isRequired: true,
+    status: false,
+    updateUser: '李客服',
+    createTime: '2026-06-18 10:45:55',
+    updateTime: '2026-06-20 17:00:12',
+  },
+];
 
 interface RuleConfigPageProps {
   addToast: (msg: string, type: 'success' | 'info' | 'warning') => void;
@@ -11,6 +105,8 @@ export default function RuleConfigPage({ addToast }: RuleConfigPageProps) {
   // ─── State ──────────────────────────────────────────────────────────────────
   const [rules, setRules] = useState<TradeModeRule[]>([]);
   const [loading, setLoading] = useState(true);
+  const apiAvailable = useRef(true);
+  const mockIdCounter = useRef(10);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -27,9 +123,13 @@ export default function RuleConfigPage({ addToast }: RuleConfigPageProps) {
       const json = await res.json();
       if (json.success) {
         setRules(json.data);
+        apiAvailable.current = true;
       }
     } catch (err) {
-      console.error(err);
+      // API unavailable (e.g. GitHub Pages) — use built-in mock data
+      console.warn('API /api/trade-mode-rules unreachable, using local mock data');
+      setRules([...MOCK_RULES]);
+      apiAvailable.current = false;
     } finally {
       setLoading(false);
     }
@@ -51,45 +151,90 @@ export default function RuleConfigPage({ addToast }: RuleConfigPageProps) {
   };
 
   const handleSave = async (draft: Omit<TradeModeRule, 'id' | 'createTime' | 'updateTime'> & { id?: number }) => {
-    try {
-      const isEdit = !!draft.id;
-      const url = isEdit ? `/api/trade-mode-rules/${draft.id}` : '/api/trade-mode-rules';
-      const method = isEdit ? 'PUT' : 'POST';
+    const isEdit = !!draft.id;
 
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(draft),
-      });
+    // Try API first; fall back to local state on failure
+    if (apiAvailable.current) {
+      try {
+        const url = isEdit ? `/api/trade-mode-rules/${draft.id}` : '/api/trade-mode-rules';
+        const method = isEdit ? 'PUT' : 'POST';
 
-      const json = await res.json();
-      if (json.success) {
-        addToast(isEdit ? '规则已更新' : '规则创建成功', 'success');
-        setModalOpen(false);
-        setEditingRule(null);
-        fetchRules();
-      } else {
-        addToast(json.message || '保存失败', 'warning');
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(draft),
+        });
+
+        const json = await res.json();
+        if (json.success) {
+          addToast(isEdit ? '规则已更新' : '规则创建成功', 'success');
+          setModalOpen(false);
+          setEditingRule(null);
+          fetchRules();
+          return;
+        } else {
+          addToast(json.message || '保存失败', 'warning');
+          return;
+        }
+      } catch {
+        // API failed — toggle to offline mode and fall through to local save
+        apiAvailable.current = false;
       }
-    } catch {
-      addToast('网络异常，保存失败', 'warning');
     }
+
+    // ─── Offline / mock save ───────────────────────────────────────────────
+    const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+    if (isEdit) {
+      setRules(prev => prev.map(r =>
+        r.id === draft.id
+          ? {
+              ...r,
+              ...draft,
+              updateTime: now,
+            } as TradeModeRule
+          : r
+      ));
+      addToast('规则已更新（离线模式）', 'success');
+    } else {
+      const newRule: TradeModeRule = {
+        id: mockIdCounter.current++,
+        stationCodes: draft.stationCodes,
+        serviceCodes: draft.serviceCodes,
+        isRequired: draft.isRequired,
+        status: draft.status,
+        updateUser: draft.updateUser || '当前用户',
+        createTime: now,
+        updateTime: now,
+      };
+      setRules(prev => [...prev, newRule]);
+      addToast('规则创建成功（离线模式）', 'success');
+    }
+    setModalOpen(false);
+    setEditingRule(null);
   };
 
   const handleDelete = async (id: number) => {
     const rule = rules.find(r => r.id === id);
     const stationNames = (rule?.stationCodes || []).map(getStationName).join('、');
     if (!confirm(`确认删除"${stationNames}"的规则吗？此操作无法撤销。`)) return;
-    try {
-      const res = await fetch(`/api/trade-mode-rules/${id}`, { method: 'DELETE' });
-      const json = await res.json();
-      if (json.success) {
-        addToast('规则已删除', 'success');
-        fetchRules();
+
+    if (apiAvailable.current) {
+      try {
+        const res = await fetch(`/api/trade-mode-rules/${id}`, { method: 'DELETE' });
+        const json = await res.json();
+        if (json.success) {
+          addToast('规则已删除', 'success');
+          fetchRules();
+          return;
+        }
+      } catch {
+        apiAvailable.current = false;
       }
-    } catch {
-      addToast('删除失败', 'warning');
     }
+
+    // ─── Offline / mock delete ─────────────────────────────────────────────
+    setRules(prev => prev.filter(r => r.id !== id));
+    addToast('规则已删除（离线模式）', 'success');
   };
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
