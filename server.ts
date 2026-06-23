@@ -161,7 +161,7 @@ interface TradeModeRule {
   updateTime: string;
 }
 
-let ruleIdCounter = 2;
+let ruleIdCounter = 10;
 const tradeModeRules: TradeModeRule[] = [
   {
     id: 1,
@@ -172,6 +172,86 @@ const tradeModeRules: TradeModeRule[] = [
     updateUser: '天朗（付豪）',
     createTime: '2026-06-10 09:15:30',
     updateTime: '2026-06-20 14:22:10',
+  },
+  {
+    id: 2,
+    stationCodes: ['tangxia'],
+    serviceCodes: ['de_air', 'uk_sea'],
+    isRequired: true,
+    status: true,
+    updateUser: '天朗（付豪）',
+    createTime: '2026-06-12 10:30:00',
+    updateTime: '2026-06-18 16:45:22',
+  },
+  {
+    id: 3,
+    stationCodes: ['guangzhou'],
+    serviceCodes: ['us_air_express', 'us_sea_truck', 'de_air'],
+    isRequired: true,
+    status: true,
+    updateUser: '张运营',
+    createTime: '2026-06-11 14:20:15',
+    updateTime: '2026-06-21 09:10:05',
+  },
+  {
+    id: 4,
+    stationCodes: ['guangzhou'],
+    serviceCodes: ['uk_sea', 'japan_express'],
+    isRequired: false,
+    status: true,
+    updateUser: '张运营',
+    createTime: '2026-06-13 08:55:40',
+    updateTime: '2026-06-13 08:55:40',
+  },
+  {
+    id: 5,
+    stationCodes: ['yiwu'],
+    serviceCodes: ['yiwu_tiantu'],
+    isRequired: true,
+    status: true,
+    updateUser: '李客服',
+    createTime: '2026-06-14 11:05:00',
+    updateTime: '2026-06-19 13:30:18',
+  },
+  {
+    id: 6,
+    stationCodes: ['yiwu'],
+    serviceCodes: ['us_sea_truck', 'uk_sea'],
+    isRequired: false,
+    status: false,
+    updateUser: '李客服',
+    createTime: '2026-06-15 16:40:22',
+    updateTime: '2026-06-22 10:20:33',
+  },
+  {
+    id: 7,
+    stationCodes: ['tangxia', 'guangzhou'],
+    serviceCodes: ['us_air_express', 'us_sea_truck', 'de_air', 'uk_sea'],
+    isRequired: true,
+    status: true,
+    updateUser: '天朗（付豪）',
+    createTime: '2026-06-16 09:25:10',
+    updateTime: '2026-06-23 08:15:45',
+  },
+  {
+    id: 8,
+    stationCodes: ['tangxia', 'guangzhou', 'yiwu'],
+    serviceCodes: ['japan_express'],
+    isRequired: false,
+    status: true,
+    updateUser: '张运营',
+    createTime: '2026-06-17 13:10:30',
+    updateTime: '2026-06-17 13:10:30',
+  },
+  {
+    id: 9,
+    stationCodes: ['guangzhou', 'yiwu'],
+    serviceCodes: ['yiwu_tiantu', 'de_air'],
+    isRequired: true,
+    status: false,
+    updateUser: '李客服',
+    createTime: '2026-06-18 10:45:55',
+    updateTime: '2026-06-20 17:00:12',
   },
 ];
 
