@@ -66,6 +66,7 @@ export interface SearchParams {
   groupCode: string;
   carrier: string;
   tradeMode: string[];
+  customsDeclarationType: string[];
 }
 
 export type SidebarTab = '单票' | '多票';

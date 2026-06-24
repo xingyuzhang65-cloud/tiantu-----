@@ -430,6 +430,9 @@ export default function App() {
   const handleSaveWaybill = (newWaybill: Waybill) => {
     setWaybills(prev => [newWaybill, ...prev]);
     addWaybillLog(newWaybill.id, '创建', '运单', '-', '创建运单');
+    if (newWaybill.customsDeclarationType) {
+      addWaybillLog(newWaybill.id, '创建', '报关方式', '-', newWaybill.customsDeclarationType);
+    }
     if (newWaybill.tradeMode) {
       addWaybillLog(newWaybill.id, '创建', '贸易方式', '-', newWaybill.tradeMode);
     }
@@ -469,6 +472,10 @@ export default function App() {
   const handleUpdateWaybill = (id: string, patch: Partial<Waybill>) => {
     setWaybills(prev => prev.map(w => {
       if (w.id === id) {
+        // Log customsDeclarationType changes
+        if (patch.customsDeclarationType !== undefined && patch.customsDeclarationType !== w.customsDeclarationType) {
+          addWaybillLog(id, '修改', '报关方式', w.customsDeclarationType || '(空)', patch.customsDeclarationType);
+        }
         // Log tradeMode changes
         if (patch.tradeMode !== undefined && patch.tradeMode !== w.tradeMode) {
           addWaybillLog(id, '修改', '贸易方式', w.tradeMode || '(空)', patch.tradeMode);

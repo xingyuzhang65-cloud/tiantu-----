@@ -79,7 +79,7 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
 
   // Form errors
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  const shouldShowCustomsDeclaration = false;
+  const shouldShowCustomsDeclaration = true;
 
   // ─── Dynamic Trade Mode Validation ────────────────────────────────────────
   const [tradeModeRequired, setTradeModeRequired] = useState(false);
@@ -199,8 +199,8 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
       hasUploadedInvoice: false,
       remarks: remarks,
       customerName: customer,
-      customsDeclarationType: undefined,
-      tradeMode: undefined,
+      customsDeclarationType: customsDeclarationType || undefined,
+      tradeMode: tradeMode || undefined,
     };
 
     setMultiWaybills(prev => [...prev, waybillItem]);
@@ -346,7 +346,7 @@ export default function CreateModal({ onClose, onSave, operatorName, addToast, i
       hasUploadedInvoice: false,
       remarks: remarks,
       customerName: customer,
-      customsDeclarationType: undefined,
+      customsDeclarationType: customsDeclarationType || undefined,
       tradeMode: tradeMode || undefined,
     };
 

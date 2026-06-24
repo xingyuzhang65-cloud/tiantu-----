@@ -207,6 +207,10 @@ export default function TableSection({
   const [tradeModeDropdownOpen, setTradeModeDropdownOpen] = useState(false);
   const TRADE_MODE_OPTIONS = ['9610', '9710', '9810', '0110', '1039'];
 
+  const [customsDeclarationType, setCustomsDeclarationType] = useState<string[]>([]);
+  const [customsDeclarationTypeDropdownOpen, setCustomsDeclarationTypeDropdownOpen] = useState(false);
+  const CUSTOMS_DECLARATION_OPTIONS = ['托管报关', '报关退税'];
+
   // Close trade mode dropdown on outside click
   useEffect(() => {
     if (!tradeModeDropdownOpen) return;
@@ -214,6 +218,14 @@ export default function TableSection({
     window.addEventListener('click', handler);
     return () => window.removeEventListener('click', handler);
   }, [tradeModeDropdownOpen]);
+
+  // Close customs declaration type dropdown on outside click
+  useEffect(() => {
+    if (!customsDeclarationTypeDropdownOpen) return;
+    const handler = () => setCustomsDeclarationTypeDropdownOpen(false);
+    window.addEventListener('click', handler);
+    return () => window.removeEventListener('click', handler);
+  }, [customsDeclarationTypeDropdownOpen]);
 
   const isTradeModeAllSelected = tradeMode.length === TRADE_MODE_OPTIONS.length + 1;
   const toggleTradeModeAll = () => {
@@ -230,6 +242,21 @@ export default function TableSection({
     setTradeMode(prev => prev.filter(c => c !== code));
   };
 
+  const isCustomsDeclAllSelected = customsDeclarationType.length === CUSTOMS_DECLARATION_OPTIONS.length + 1;
+  const toggleCustomsDeclAll = () => {
+    if (isCustomsDeclAllSelected) {
+      setCustomsDeclarationType([]);
+    } else {
+      setCustomsDeclarationType([...CUSTOMS_DECLARATION_OPTIONS, '__EMPTY__']);
+    }
+  };
+  const toggleCustomsDeclOpt = (code: string) => {
+    setCustomsDeclarationType(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]);
+  };
+  const removeCustomsDeclTag = (code: string) => {
+    setCustomsDeclarationType(prev => prev.filter(c => c !== code));
+  };
+
   // Active status tab filter
   const [activeStatusTab, setActiveStatusTab] = useState<string>('全部');
 
@@ -238,14 +265,15 @@ export default function TableSection({
     keywords: '',
     groupCode: '',
     carrier: '',
-    tradeMode: []
+    tradeMode: [],
+    customsDeclarationType: []
   });
 
   // Collapsible search block
   const [extraFiltersOpen, setExtraFiltersOpen] = useState(true);
 
   // Selected checkbox (single select only)
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   // Waybill change log modal
   const [logModalOpen, setLogModalOpen] = useState(false);
   const [printLabelMenuOpen, setPrintLabelMenuOpen] = useState(false);
@@ -257,6 +285,8 @@ export default function TableSection({
   const [batchMenuOpen, setBatchMenuOpen] = useState(false);
   const [batchTradePanelOpen, setBatchTradePanelOpen] = useState(false);
   const [batchTradeMode, setBatchTradeMode] = useState('');
+  const [batchCustomsDeclPanelOpen, setBatchCustomsDeclPanelOpen] = useState(false);
+  const [batchCustomsDeclarationType, setBatchCustomsDeclarationType] = useState('');
 
   const [activeDetailWaybill, setActiveDetailWaybill] = useState<Waybill | null>(null);
   const [importInfoWaybill, setImportInfoWaybill] = useState<Waybill | null>(null);
@@ -303,6 +333,16 @@ export default function TableSection({
       if (!matchEmpty && !matchValue) return false;
     }
 
+    // Customs declaration type match (multi-select)
+    if (appliedFilters.customsDeclarationType.length > 0) {
+      const hasEmpty = appliedFilters.customsDeclarationType.includes('__EMPTY__');
+      const valueModes = appliedFilters.customsDeclarationType.filter(m => m !== '__EMPTY__');
+      const itemDeclType = item.customsDeclarationType || '';
+      const matchEmpty = hasEmpty && !itemDeclType;
+      const matchValue = valueModes.length > 0 && valueModes.includes(itemDeclType);
+      if (!matchEmpty && !matchValue) return false;
+    }
+
     // Status Tab Match
     if (activeStatusTab === '已下单') {
       if (item.status !== '待揽收') return false;
@@ -331,10 +371,10 @@ export default function TableSection({
     const timeB = new Date(b.createTime).getTime();
     return sortAsc ? timeA - timeB : timeB - timeA;
   });
-  const exportScopeWaybills = selectedId
-    ? waybills.filter(item => selectedId === item.id)
+  const exportScopeWaybills = selectedIds.length > 0
+    ? waybills.filter(item => selectedIds.includes(item.id))
     : sortedWaybills;
-  const selectedPrintWaybills = waybills.filter(item => selectedId === item.id);
+  const selectedPrintWaybills = waybills.filter(item => selectedIds.includes(item.id));
   const systemLabelWatermarks = Array.from({ length: 28 }, (_, index) => index);
 
   // Paginated partition
@@ -346,22 +386,23 @@ export default function TableSection({
   // Checkbox handlers (single select)
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked && paginatedWaybills.length > 0) {
-      setSelectedId(paginatedWaybills[0].id);
+      setSelectedIds(paginatedWaybills.map(w => w.id));
     } else {
-      setSelectedId(null);
+      setSelectedIds([]);
     }
   };
 
   const handleSelectRow = (id: string) => {
-    setSelectedId(prev => prev === id ? null : id);
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
   // Filter apply and reset
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    setAppliedFilters({ keywords, groupCode, carrier, tradeMode });
+    setAppliedFilters({ keywords, groupCode, carrier, tradeMode, customsDeclarationType });
     setCurrentPage(1);
     setTradeModeDropdownOpen(false);
+    setCustomsDeclarationTypeDropdownOpen(false);
     addToast('已根据输入条件重新检索匹配运单', 'success');
   };
 
@@ -370,9 +411,10 @@ export default function TableSection({
     setGroupCode('');
     setCarrier('');
     setTradeMode([]);
-    setAppliedFilters({ keywords: '', groupCode: '', carrier: '', tradeMode: [] });
+    setCustomsDeclarationType([]);
+    setAppliedFilters({ keywords: '', groupCode: '', carrier: '', tradeMode: [], customsDeclarationType: [] });
     setCurrentPage(1);
-    setSelectedId(null);
+    setSelectedIds([]);
     addToast('搜索条件已重置，显示全量日志', 'info');
   };
 
@@ -533,15 +575,15 @@ export default function TableSection({
   };
 
   const handleDeleteSelected = () => {
-    if (!selectedId) {
+    if (selectedIds.length === 0) {
       addToast('请在列表中勾选要作废删除的运单', 'warning');
       return;
     }
-    const w = waybills.find(x => x.id === selectedId);
-    if (confirm(`确认要彻底作废运单 ${selectedId}${w ? '（' + w.fbaCode + '）' : ''}吗？此操作无法撤销。`)) {
-      onDeleteWaybills([selectedId]);
-      setSelectedId(null);
-      addToast('选定运单删除作废成功', 'success');
+    const ids = selectedIds.join(', ');
+    if (confirm(`确认要彻底作废 ${selectedIds.length} 门运单 [${ids}] 吗？此操作无法撤销。`)) {
+      onDeleteWaybills(selectedIds);
+      setSelectedIds([]);
+      addToast(`已作废 ${selectedIds.length} 门运单`, 'success');
     }
   };
 
@@ -553,7 +595,7 @@ export default function TableSection({
   };
 
   const handlePrintSystemLabel = () => {
-    if (!selectedId) {
+    if (selectedIds.length === 0) {
       addToast('请在下方列表中勾选要打印系统标签的运单', 'warning');
       return;
     }
@@ -564,7 +606,7 @@ export default function TableSection({
   };
 
   const handleBatchTradeModeUpdate = (nextTradeMode = batchTradeMode) => {
-    if (!selectedId) {
+    if (selectedIds.length === 0) {
       addToast('请在下方列表中勾选目标运单进行操作！', 'warning');
       return;
     }
@@ -573,17 +615,38 @@ export default function TableSection({
       return;
     }
 
-    const selectedWaybill = waybills.find(item => selectedId === item.id);
-    if (selectedWaybill && (selectedWaybill.customsDeclarationType || '托管报关') === '托管报关') {
-      addToast(`[${selectedWaybill.id}]报关方式不支持该贸易方式`, 'warning');
+    const blocked = selectedIds
+      .map(id => waybills.find(w => w.id === id))
+      .filter(w => w && (w.customsDeclarationType || '托管报关') === '托管报关');
+
+    if (blocked.length > 0) {
+      addToast(`[${blocked.map(w => w!.id).join(',')}] 报关方式为托管报关，不支持填写贸易方式，已跳过`, 'warning');
+    }
+
+    const allowed = selectedIds.filter(id => !blocked.some(w => w!.id === id));
+    allowed.forEach(id => onUpdateWaybill(id, { tradeMode: nextTradeMode }));
+
+    setBatchTradePanelOpen(false);
+    setBatchMenuOpen(false);
+    if (allowed.length > 0) {
+      addToast(`已批量修改 ${allowed.length} 门运单贸易方式为 ${nextTradeMode}`, 'success');
+    }
+  };
+
+  const handleBatchCustomsDeclarationUpdate = (nextDeclType = batchCustomsDeclarationType) => {
+    if (selectedIds.length === 0) {
+      addToast('请在下方列表中勾选目标运单进行操作！', 'warning');
+      return;
+    }
+    if (!nextDeclType) {
+      addToast('请选择要修改的报关方式', 'warning');
       return;
     }
 
-    onUpdateWaybill(selectedId, { tradeMode: nextTradeMode });
-    setBatchTradeMode(nextTradeMode);
-    setBatchTradePanelOpen(false);
+    selectedIds.forEach(id => onUpdateWaybill(id, { customsDeclarationType: nextDeclType }));
+    setBatchCustomsDeclPanelOpen(false);
     setBatchMenuOpen(false);
-    addToast(`已修改运单 ${selectedId} 贸易方式为 ${nextTradeMode}`, 'success');
+    addToast(`已批量修改 ${selectedIds.length} 门运单报关方式为 ${nextDeclType}`, 'success');
   };
 
   const handleConfirmImportInfo = () => {
@@ -849,7 +912,7 @@ export default function TableSection({
 
           {extraFiltersOpen && (
             <div className="space-y-3 pt-3 border-t border-slate-100">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
                 {/* Keywords Input */}
                 <div className="relative">
                   <label className="block text-[11px] font-semibold text-slate-500 mb-1">
@@ -893,6 +956,87 @@ export default function TableSection({
                     onChange={(e) => setCarrier(e.target.value)}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none placeholder:text-slate-400"
                   />
+                </div>
+
+                {/* Customs Declaration Type — Multi-select */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                    报关方式
+                  </label>
+                  <div className="relative" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={() => setCustomsDeclarationTypeDropdownOpen(!customsDeclarationTypeDropdownOpen)}
+                      className="flex items-center justify-between w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs hover:border-blue-400 transition-colors"
+                    >
+                      <span className={customsDeclarationType.length === 0 ? 'text-slate-400' : 'text-slate-700'}>
+                        {customsDeclarationType.length === 0
+                          ? '全部报关方式'
+                          : `已选 ${customsDeclarationType.length} 个`}
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                    </button>
+                    {customsDeclarationTypeDropdownOpen && (
+                      <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl py-1">
+                        <button
+                          type="button"
+                          onClick={toggleCustomsDeclAll}
+                          className={`flex w-full items-center gap-2 px-3 py-2 text-xs text-left hover:bg-blue-50 transition-colors font-semibold border-b border-slate-100 ${
+                            isCustomsDeclAllSelected ? 'text-blue-700' : 'text-slate-600'
+                          }`}
+                        >
+                          <span className={`inline-flex h-4 w-4 items-center justify-center rounded border text-[10px] ${
+                            isCustomsDeclAllSelected
+                              ? 'bg-blue-600 border-blue-600 text-white'
+                              : 'border-slate-300'
+                          }`}>
+                            {isCustomsDeclAllSelected && <Check className="h-3 w-3" />}
+                          </span>
+                          全选
+                        </button>
+                        {[
+                          { code: '托管报关', name: '托管报关' },
+                          { code: '报关退税', name: '报关退税' },
+                          { code: '__EMPTY__', name: '未填写' },
+                        ].map(opt => {
+                          const isSelected = customsDeclarationType.includes(opt.code);
+                          return (
+                            <button
+                              key={opt.code}
+                              type="button"
+                              onClick={() => toggleCustomsDeclOpt(opt.code)}
+                              className={`flex w-full items-center justify-between px-3 py-2 text-xs text-left hover:bg-blue-50 transition-colors ${
+                                isSelected ? 'text-blue-700 font-medium' : 'text-slate-600'
+                              }`}
+                            >
+                              <span>{opt.name}</span>
+                              {isSelected && <Check className="h-3.5 w-3.5 text-blue-600" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  {/* Selected customs declaration type tags */}
+                  {customsDeclarationType.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {customsDeclarationType.map(code => {
+                        const label = code === '__EMPTY__' ? '未填写' : code;
+                        return (
+                          <span key={code} className="inline-flex items-center gap-1 rounded bg-blue-50 border border-blue-200 px-2 py-0.5 text-[11px] text-blue-700 font-medium">
+                            {label}
+                            <button
+                              type="button"
+                              onClick={() => removeCustomsDeclTag(code)}
+                              className="text-blue-400 hover:text-red-500"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Trade Mode — Multi-select */}
@@ -1153,11 +1297,25 @@ export default function TableSection({
             </button>
 
             {batchMenuOpen && (
-              <div className="absolute left-0 top-full z-30 mt-1 w-36 rounded-sm border border-slate-200 bg-white py-1 shadow-xl">
+              <div className="absolute left-0 top-full z-30 mt-1 w-44 rounded-sm border border-slate-200 bg-white py-1 shadow-xl">
                 <button
                   type="button"
                   onClick={() => {
-                    if (!selectedId) {
+                    if (selectedIds.length === 0) {
+                      addToast('请在下方列表中勾选目标运单进行操作！', 'warning');
+                      return;
+                    }
+                    setBatchMenuOpen(false);
+                    setBatchCustomsDeclPanelOpen(true);
+                  }}
+                  className="flex w-full items-center justify-between px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-blue-50 hover:text-[#004bb1]"
+                >
+                  <span>批量修改报关方式</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedIds.length === 0) {
                       addToast('请在下方列表中勾选目标运单进行操作！', 'warning');
                       return;
                     }
@@ -1242,8 +1400,8 @@ export default function TableSection({
           <button
             type="button"
             onClick={() => {
-              if (!selectedId) {
-                addToast('请先在下方列表中勾选一条运单', 'warning');
+              if (selectedIds.length === 0) {
+                addToast('请先在下方列表中勾选运单', 'warning');
                 return;
               }
               setLogModalOpen(true);
@@ -1317,15 +1475,15 @@ export default function TableSection({
             欧线入库数据推送
           </button>
 
-          {/* Show Delete button if item is selected */}
-          {selectedId && (
+          {/* Show Delete button if items are selected */}
+          {selectedIds.length > 0 && (
             <button
               id="btn-delete-selected"
               onClick={handleDeleteSelected}
               className="flex items-center gap-1 rounded bg-red-650 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-red-700 transition-colors shadow-sm shadow-red-100 animate-pulse"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              <span>作废选中 ({selectedId})</span>
+              <span>作废选中 ({selectedIds.length}门)</span>
             </button>
           )}
         </div>
@@ -1354,7 +1512,7 @@ export default function TableSection({
                     <input
                       id="checkbox-all"
                       type="checkbox"
-                      checked={selectedId !== null && paginatedWaybills.some(w => w.id === selectedId)}
+                      checked={selectedIds.length > 0 && paginatedWaybills.every(w => selectedIds.includes(w.id))}
                       onChange={handleSelectAll}
                       className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                     />
@@ -1378,6 +1536,7 @@ export default function TableSection({
                   <th className="w-32 py-3 px-3 text-xs">附加费申请</th>
                   <th className="w-28 py-3 px-3 text-xs">邮编</th>
                   <th className="w-36 py-3 px-3 text-xs font-semibold">经营单位</th>
+                  <th className="w-28 py-3 px-3 text-xs">报关方式</th>
                   <th className="w-28 py-3 px-3 text-xs">贸易方式</th>
                   <th className="w-28 py-3 px-3 text-xs">客户类型</th>
                   <th className="w-32 py-3 px-3 text-xs text-center">运单状态</th>
@@ -1387,7 +1546,7 @@ export default function TableSection({
               <tbody className="divide-y divide-slate-100 text-[11.5px] text-slate-700">
                 {paginatedWaybills.length > 0 ? (
                   paginatedWaybills.map((w) => {
-                    const isSelected = selectedId === w.id;
+                    const isSelected = selectedIds.includes(w.id);
                     return (
                       <tr 
                         key={w.id}
@@ -1476,6 +1635,19 @@ export default function TableSection({
                           {w.carrier}
                         </td>
 
+                        {/* 报关方式 */}
+                        <td className="py-2.5 px-3 text-slate-600">
+                          <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                            w.customsDeclarationType === '报关退税'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : w.customsDeclarationType === '托管报关'
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              : 'bg-slate-50 text-slate-500 border border-slate-200'
+                          }`}>
+                            {w.customsDeclarationType || '-'}
+                          </span>
+                        </td>
+
                         {/* 贸易方式 */}
                         <td className="py-2.5 px-3 font-mono text-slate-600">
                           {w.tradeMode || '-'}
@@ -1535,7 +1707,7 @@ export default function TableSection({
                   })
                 ) : (
                   <tr>
-                    <td colSpan={15} className="py-12 text-center text-slate-400 text-xs font-sans">
+                    <td colSpan={16} className="py-12 text-center text-slate-400 text-xs font-sans">
                       <AlertOctagon className="h-6 w-6 text-slate-400 mx-auto mb-2 animate-bounce" />
                       当前检索条件下暂无匹配运单数据，请使用“重置”或重新录入。
                     </td>
@@ -1876,6 +2048,54 @@ export default function TableSection({
         </div>
       )}
 
+      {batchCustomsDeclPanelOpen && (
+        <div className="fixed inset-0 z-[70] flex items-start justify-center bg-slate-950/50 pt-16">
+          <div className="w-[520px] rounded-sm bg-white shadow-2xl">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <h3 className="text-base font-bold text-slate-900">批量修改报关方式</h3>
+            </div>
+            <div className="space-y-4 px-7 py-5 text-xs">
+              <div className="flex items-center gap-3">
+                <span className="w-20 text-right text-slate-600">运单号：</span>
+                <span className="font-semibold text-slate-700">
+                  {selectedIds.length} 门运单
+                </span>
+              </div>
+              <label className="flex items-center gap-3">
+                <span className="w-20 text-right text-slate-600">
+                  <span className="mr-0.5 text-red-500">*</span>报关方式：
+                </span>
+                <select
+                  value={batchCustomsDeclarationType}
+                  onChange={(e) => setBatchCustomsDeclarationType(e.target.value)}
+                  className="h-9 flex-1 rounded border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">请选择报关方式</option>
+                  <option value="托管报关">托管报关</option>
+                  <option value="报关退税">报关退税</option>
+                </select>
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setBatchCustomsDeclPanelOpen(false)}
+                className="rounded border border-slate-300 bg-white px-5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBatchCustomsDeclarationUpdate()}
+                className="rounded bg-[#004bb1] px-5 py-1.5 text-xs font-bold text-white hover:bg-[#003b91]"
+              >
+                确定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {batchTradePanelOpen && (
         <div className="fixed inset-0 z-[70] flex items-start justify-center bg-slate-950/50 pt-16">
           <div className="w-[520px] rounded-sm bg-white shadow-2xl">
@@ -1886,7 +2106,7 @@ export default function TableSection({
               <div className="flex items-center gap-3">
                 <span className="w-20 text-right text-slate-600">运单号：</span>
                 <span className="font-semibold text-slate-700">
-                  {selectedId || '-'}
+                  {selectedIds.length} 门运单
                 </span>
               </div>
               <label className="flex items-center gap-3">
@@ -1926,9 +2146,10 @@ export default function TableSection({
       )}
 
       {/* ─── Waybill Change Log Modal ───────────────────────────────────── */}
-      {logModalOpen && selectedId && (() => {
-        const logs = waybillLogs.filter(l => l.waybillId === selectedId);
-        const selectedWaybill = waybills.find(w => w.id === selectedId);
+      {logModalOpen && selectedIds.length > 0 && (() => {
+        const primaryId = selectedIds[0];
+        const logs = waybillLogs.filter(l => l.waybillId === primaryId);
+        const selectedWaybill = waybills.find(w => w.id === primaryId);
         const actionColors: Record<string, string> = {
           '创建': 'bg-green-100 text-green-700 border-green-300',
           '修改': 'bg-blue-100 text-blue-700 border-blue-300',
@@ -1944,7 +2165,8 @@ export default function TableSection({
                     操作日志
                     {selectedWaybill && (
                       <span className="ml-2 text-xs font-normal text-slate-500">
-                        运单 {selectedId} | {selectedWaybill.fbaCode}
+                        运单 {primaryId} | {selectedWaybill.fbaCode}
+                        {selectedIds.length > 1 && <span className="ml-1 text-blue-500">(+{selectedIds.length - 1} 门其他运单)</span>}
                       </span>
                     )}
                   </h3>
