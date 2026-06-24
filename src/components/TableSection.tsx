@@ -5,10 +5,11 @@ import {
   FileDown, Check, AlertOctagon, MapPin, X,
   Copy, Printer
 } from 'lucide-react';
-import { Waybill, SearchParams, OrderType, WaybillAttachment } from '../types';
+import { Waybill, SearchParams, OrderType, WaybillAttachment, WaybillChangeLog } from '../types';
 
 interface TableSectionProps {
   waybills: Waybill[];
+  waybillLogs: WaybillChangeLog[];
   onAddWaybillClick: (orderType: OrderType) => void;
   onDeleteWaybills: (ids: string[]) => void;
   onUpdateWaybillStatus: (id: string, nextStatus: Waybill['status']) => void;
@@ -189,9 +190,10 @@ const createZip = (entries: Array<{ name: string; data: Uint8Array }>) => {
   return concatBytes([...localParts, centralDirectory, end]);
 };
 
-export default function TableSection({ 
-  waybills, 
-  onAddWaybillClick, 
+export default function TableSection({
+  waybills,
+  waybillLogs,
+  onAddWaybillClick,
   onDeleteWaybills,
   onUpdateWaybillStatus,
   onUpdateWaybill,
@@ -217,8 +219,10 @@ export default function TableSection({
   // Collapsible search block
   const [extraFiltersOpen, setExtraFiltersOpen] = useState(true);
 
-  // Selected checkboxes
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  // Selected checkbox (single select only)
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Waybill change log modal
+  const [logModalOpen, setLogModalOpen] = useState(false);
   const [printLabelMenuOpen, setPrintLabelMenuOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [attachmentExportModalOpen, setAttachmentExportModalOpen] = useState(false);
@@ -300,10 +304,10 @@ export default function TableSection({
     const timeB = new Date(b.createTime).getTime();
     return sortAsc ? timeA - timeB : timeB - timeA;
   });
-  const exportScopeWaybills = selectedIds.length > 0
-    ? waybills.filter(item => selectedIds.includes(item.id))
+  const exportScopeWaybills = selectedId
+    ? waybills.filter(item => selectedId === item.id)
     : sortedWaybills;
-  const selectedPrintWaybills = waybills.filter(item => selectedIds.includes(item.id));
+  const selectedPrintWaybills = waybills.filter(item => selectedId === item.id);
   const systemLabelWatermarks = Array.from({ length: 28 }, (_, index) => index);
 
   // Paginated partition
@@ -312,20 +316,17 @@ export default function TableSection({
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedWaybills = sortedWaybills.slice(startIndex, startIndex + itemsPerPage);
 
-  // Checkbox handlers
+  // Checkbox handlers (single select)
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.checked) {
-      const currentIds = paginatedWaybills.map(w => w.id);
-      setSelectedIds(currentIds);
+    if (e.target.checked && paginatedWaybills.length > 0) {
+      setSelectedId(paginatedWaybills[0].id);
     } else {
-      setSelectedIds([]);
+      setSelectedId(null);
     }
   };
 
   const handleSelectRow = (id: string) => {
-    setSelectedIds(prev => 
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-    );
+    setSelectedId(prev => prev === id ? null : id);
   };
 
   // Filter apply and reset
@@ -343,7 +344,7 @@ export default function TableSection({
     setTradeMode('');
     setAppliedFilters({ keywords: '', groupCode: '', carrier: '', tradeMode: '' });
     setCurrentPage(1);
-    setSelectedIds([]);
+    setSelectedId(null);
     addToast('搜索条件已重置，显示全量日志', 'info');
   };
 
@@ -504,13 +505,14 @@ export default function TableSection({
   };
 
   const handleDeleteSelected = () => {
-    if (selectedIds.length === 0) {
+    if (!selectedId) {
       addToast('请在列表中勾选要作废删除的运单', 'warning');
       return;
     }
-    if (confirm(`确认要彻底作废作消当前选中的 ${selectedIds.length} 张跨境运单吗？此操作无法撤销。`)) {
-      onDeleteWaybills(selectedIds);
-      setSelectedIds([]);
+    const w = waybills.find(x => x.id === selectedId);
+    if (confirm(`确认要彻底作废运单 ${selectedId}${w ? '（' + w.fbaCode + '）' : ''}吗？此操作无法撤销。`)) {
+      onDeleteWaybills([selectedId]);
+      setSelectedId(null);
       addToast('选定运单删除作废成功', 'success');
     }
   };
@@ -523,7 +525,7 @@ export default function TableSection({
   };
 
   const handlePrintSystemLabel = () => {
-    if (selectedIds.length === 0) {
+    if (!selectedId) {
       addToast('请在下方列表中勾选要打印系统标签的运单', 'warning');
       return;
     }
@@ -534,29 +536,26 @@ export default function TableSection({
   };
 
   const handleBatchTradeModeUpdate = (nextTradeMode = batchTradeMode) => {
-    if (selectedIds.length === 0) {
-      addToast('请在下方列表中勾选目标运单进行批量操作！', 'warning');
+    if (!selectedId) {
+      addToast('请在下方列表中勾选目标运单进行操作！', 'warning');
       return;
     }
     if (!nextTradeMode) {
-      addToast('请选择要批量修改的贸易方式', 'warning');
+      addToast('请选择要修改的贸易方式', 'warning');
       return;
     }
 
-    const selectedWaybills = waybills.filter(item => selectedIds.includes(item.id));
-    const unsupportedWaybills = selectedWaybills.filter(item => (item.customsDeclarationType || '托管报关') === '托管报关');
-
-    if (unsupportedWaybills.length > 0) {
-      const blockedText = unsupportedWaybills.map(item => `[${item.id}]`).join('、');
-      addToast(`${blockedText}报关方式不支持该贸易方式`, 'warning');
+    const selectedWaybill = waybills.find(item => selectedId === item.id);
+    if (selectedWaybill && (selectedWaybill.customsDeclarationType || '托管报关') === '托管报关') {
+      addToast(`[${selectedWaybill.id}]报关方式不支持该贸易方式`, 'warning');
       return;
     }
 
-    selectedIds.forEach(id => onUpdateWaybill(id, { tradeMode: nextTradeMode }));
+    onUpdateWaybill(selectedId, { tradeMode: nextTradeMode });
     setBatchTradeMode(nextTradeMode);
     setBatchTradePanelOpen(false);
     setBatchMenuOpen(false);
-    addToast(`已批量修改 ${selectedIds.length} 张运单贸易方式为 ${nextTradeMode}`, 'success');
+    addToast(`已修改运单 ${selectedId} 贸易方式为 ${nextTradeMode}`, 'success');
   };
 
   const handleConfirmImportInfo = () => {
@@ -1066,8 +1065,8 @@ export default function TableSection({
                 <button
                   type="button"
                   onClick={() => {
-                    if (selectedIds.length === 0) {
-                      addToast('请在下方列表中勾选目标运单进行批量操作！', 'warning');
+                    if (!selectedId) {
+                      addToast('请在下方列表中勾选目标运单进行操作！', 'warning');
                       return;
                     }
                     setBatchMenuOpen(false);
@@ -1150,7 +1149,13 @@ export default function TableSection({
           {/* 查看日志 */}
           <button
             type="button"
-            onClick={() => addToast('调取集港操作审计日志、清关查验异常警示日志组...', 'info')}
+            onClick={() => {
+              if (!selectedId) {
+                addToast('请先在下方列表中勾选一条运单', 'warning');
+                return;
+              }
+              setLogModalOpen(true);
+            }}
             className="rounded bg-[#004bb1] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#003b91] transition-all"
           >
             查看日志
@@ -1220,15 +1225,15 @@ export default function TableSection({
             欧线入库数据推送
           </button>
 
-          {/* Show Multi Delete if items are selected */}
-          {selectedIds.length > 0 && (
+          {/* Show Delete button if item is selected */}
+          {selectedId && (
             <button
               id="btn-delete-selected"
               onClick={handleDeleteSelected}
               className="flex items-center gap-1 rounded bg-red-650 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-red-700 transition-colors shadow-sm shadow-red-100 animate-pulse"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              <span>作废选中 ({selectedIds.length})</span>
+              <span>作废选中 ({selectedId})</span>
             </button>
           )}
         </div>
@@ -1257,7 +1262,7 @@ export default function TableSection({
                     <input
                       id="checkbox-all"
                       type="checkbox"
-                      checked={paginatedWaybills.length > 0 && paginatedWaybills.every(w => selectedIds.includes(w.id))}
+                      checked={selectedId !== null && paginatedWaybills.some(w => w.id === selectedId)}
                       onChange={handleSelectAll}
                       className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                     />
@@ -1290,7 +1295,7 @@ export default function TableSection({
               <tbody className="divide-y divide-slate-100 text-[11.5px] text-slate-700">
                 {paginatedWaybills.length > 0 ? (
                   paginatedWaybills.map((w) => {
-                    const isSelected = selectedIds.includes(w.id);
+                    const isSelected = selectedId === w.id;
                     return (
                       <tr 
                         key={w.id}
@@ -1789,7 +1794,7 @@ export default function TableSection({
               <div className="flex items-center gap-3">
                 <span className="w-20 text-right text-slate-600">运单号：</span>
                 <span className="font-semibold text-slate-700">
-                  {selectedIds.length > 2 ? `${selectedIds.slice(0, 2).join('、')} 等 ${selectedIds.length} 单` : selectedIds.join('、')}
+                  {selectedId || '-'}
                 </span>
               </div>
               <label className="flex items-center gap-3">
@@ -1827,6 +1832,115 @@ export default function TableSection({
           </div>
         </div>
       )}
+
+      {/* ─── Waybill Change Log Modal ───────────────────────────────────── */}
+      {logModalOpen && selectedId && (() => {
+        const logs = waybillLogs.filter(l => l.waybillId === selectedId);
+        const selectedWaybill = waybills.find(w => w.id === selectedId);
+        const actionColors: Record<string, string> = {
+          '创建': 'bg-green-100 text-green-700 border-green-300',
+          '修改': 'bg-blue-100 text-blue-700 border-blue-300',
+          '删除': 'bg-red-100 text-red-700 border-red-300',
+        };
+        return (
+          <div className="fixed inset-0 z-[80] flex items-start justify-center bg-slate-950/50 pt-16">
+            <div className="w-[720px] max-h-[80vh] flex flex-col rounded-sm bg-white shadow-2xl">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 shrink-0">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    操作日志
+                    {selectedWaybill && (
+                      <span className="ml-2 text-xs font-normal text-slate-500">
+                        运单 {selectedId} | {selectedWaybill.fbaCode}
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {selectedWaybill ? `贸易方式: ${selectedWaybill.tradeMode || '(空)'} | 状态: ${selectedWaybill.status}` : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLogModalOpen(false)}
+                  className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto">
+                {logs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                    <AlertOctagon className="h-10 w-10 mb-3 text-slate-300" />
+                    <span className="text-xs">该运单暂无操作日志记录</span>
+                    <span className="text-[10px] mt-1 text-slate-300">新建或编辑运单后将自动记录变更历史</span>
+                  </div>
+                ) : (
+                  <table className="w-full text-left border-collapse">
+                    <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
+                      <tr className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                        <th className="w-16 py-3 px-4 text-center text-xs">#</th>
+                        <th className="w-44 py-3 px-4 text-xs">时间</th>
+                        <th className="w-20 py-3 px-4 text-xs text-center">操作</th>
+                        <th className="w-28 py-3 px-4 text-xs">变更字段</th>
+                        <th className="py-3 px-4 text-xs">变更详情</th>
+                        <th className="w-28 py-3 px-4 text-xs">操作人</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-[11.5px]">
+                      {logs.map((log, idx) => {
+                        const badge = actionColors[log.action] || 'bg-slate-100 text-slate-600 border-slate-200';
+                        return (
+                          <tr key={log.id} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="py-2.5 px-4 text-center font-mono text-slate-400 text-[10px]">
+                              {idx + 1}
+                            </td>
+                            <td className="py-2.5 px-4 text-slate-600 font-mono text-[10px] whitespace-nowrap">
+                              {log.timestamp}
+                            </td>
+                            <td className="py-2.5 px-4 text-center">
+                              <span className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badge}`}>
+                                {log.action}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-4 text-slate-700 font-medium">
+                              {log.field}
+                            </td>
+                            <td className="py-2.5 px-4 text-slate-600">
+                              <span className="text-slate-400 line-through mr-1">{log.oldValue}</span>
+                              <span className="text-slate-400 mx-1">→</span>
+                              <span className="text-slate-800 font-medium">{log.newValue}</span>
+                            </td>
+                            <td className="py-2.5 px-4 text-slate-600">
+                              {log.operator}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-between border-t border-slate-100 px-6 py-3 shrink-0">
+                <span className="text-[11px] text-slate-400">
+                  共 <strong className="text-slate-600">{logs.length}</strong> 条记录
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setLogModalOpen(false)}
+                  className="rounded border border-slate-300 bg-white px-5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  关闭
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {attachmentExportModalOpen && (
         <div className="fixed inset-0 z-[70] flex items-start justify-center bg-slate-950/50 pt-24">

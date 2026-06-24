@@ -119,3 +119,15 @@ export interface TradeModeCheckResponse {
   isRequired: boolean;
   matchedRuleName?: string;
 }
+
+// ─── Waybill Change Log ──────────────────────────────────────────────────────
+export interface WaybillChangeLog {
+  id: number;
+  waybillId: string;
+  action: '创建' | '修改' | '删除';
+  field: string;
+  oldValue: string;
+  newValue: string;
+  operator: string;
+  timestamp: string;
+}

@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import TableSection from './components/TableSection';
 import CreateModal from './components/CreateModal';
 import NotificationToast, { ToastMessage } from './components/NotificationToast';
 import RuleConfigPage from './components/RuleConfigPage';
-import { Waybill, OrderType } from './types';
+import { Waybill, OrderType, WaybillChangeLog } from './types';
 import { Settings, HelpCircle, Layers, ShieldCheck, Mail, Phone, Calendar } from 'lucide-react';
 
 export default function App() {
@@ -30,6 +30,203 @@ export default function App() {
 
   const removeToast = (id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  // ─── Waybill Change Log ────────────────────────────────────────────────────
+  const [waybillLogs, setWaybillLogs] = useState<WaybillChangeLog[]>([
+    {
+      id: 1, waybillId: 'HD2606161063', action: '创建', field: '运单',
+      oldValue: '-', newValue: '创建运单', operator: '天朗（付豪）',
+      timestamp: '2026-06-16 15:42:25',
+    },
+    {
+      id: 2, waybillId: 'HD2606161063', action: '创建', field: '贸易方式',
+      oldValue: '-', newValue: '9610', operator: '天朗（付豪）',
+      timestamp: '2026-06-16 15:42:25',
+    },
+    {
+      id: 3, waybillId: 'HD2606161063', action: '修改', field: '贸易方式',
+      oldValue: '9610', newValue: '9710', operator: '张运营',
+      timestamp: '2026-06-17 10:15:30',
+    },
+    {
+      id: 4, waybillId: 'HD2606161063', action: '修改', field: '贸易方式',
+      oldValue: '9710', newValue: '9610', operator: '天朗（付豪）',
+      timestamp: '2026-06-18 14:22:10',
+    },
+    {
+      id: 5, waybillId: 'HD2606161063', action: '修改', field: '状态',
+      oldValue: '待揽收', newValue: '已收货', operator: '李客服',
+      timestamp: '2026-06-19 09:08:45',
+    },
+    {
+      id: 6, waybillId: 'HD2606161099', action: '创建', field: '运单',
+      oldValue: '-', newValue: '创建运单', operator: '天朗（付豪）',
+      timestamp: '2026-06-16 14:15:22',
+    },
+    {
+      id: 7, waybillId: 'HD2606161099', action: '创建', field: '贸易方式',
+      oldValue: '-', newValue: '9710', operator: '天朗（付豪）',
+      timestamp: '2026-06-16 14:15:22',
+    },
+    {
+      id: 8, waybillId: 'HD2606161099', action: '修改', field: '贸易方式',
+      oldValue: '9710', newValue: '9810', operator: '张运营',
+      timestamp: '2026-06-17 16:33:21',
+    },
+    {
+      id: 9, waybillId: 'HD2606161099', action: '修改', field: '状态',
+      oldValue: '待揽收', newValue: '转运中', operator: '天朗（付豪）',
+      timestamp: '2026-06-18 08:12:05',
+    },
+    {
+      id: 10, waybillId: 'HD2606161099', action: '修改', field: '贸易方式',
+      oldValue: '9810', newValue: '9710', operator: '天朗（付豪）',
+      timestamp: '2026-06-19 11:20:37',
+    },
+    {
+      id: 11, waybillId: 'HD2606162231', action: '创建', field: '运单',
+      oldValue: '-', newValue: '创建运单', operator: '张运营',
+      timestamp: '2026-06-16 13:02:11',
+    },
+    {
+      id: 12, waybillId: 'HD2606162231', action: '创建', field: '贸易方式',
+      oldValue: '-', newValue: '9810', operator: '张运营',
+      timestamp: '2026-06-16 13:02:11',
+    },
+    {
+      id: 13, waybillId: 'HD2606162231', action: '修改', field: '状态',
+      oldValue: '待揽收', newValue: '异常件', operator: '李客服',
+      timestamp: '2026-06-17 15:44:50',
+    },
+    {
+      id: 14, waybillId: 'HD2606163345', action: '创建', field: '运单',
+      oldValue: '-', newValue: '创建运单', operator: '天朗（付豪）',
+      timestamp: '2026-06-16 11:24:55',
+    },
+    {
+      id: 15, waybillId: 'HD2606163345', action: '创建', field: '贸易方式',
+      oldValue: '-', newValue: '0110', operator: '天朗（付豪）',
+      timestamp: '2026-06-16 11:24:55',
+    },
+    {
+      id: 16, waybillId: 'HD2606163345', action: '修改', field: '贸易方式',
+      oldValue: '0110', newValue: '1039', operator: '张运营',
+      timestamp: '2026-06-18 09:30:12',
+    },
+    {
+      id: 17, waybillId: 'HD2606164412', action: '创建', field: '运单',
+      oldValue: '-', newValue: '创建运单', operator: '李客服',
+      timestamp: '2026-06-16 09:12:44',
+    },
+    {
+      id: 18, waybillId: 'HD2606164412', action: '创建', field: '贸易方式',
+      oldValue: '-', newValue: '1039', operator: '李客服',
+      timestamp: '2026-06-16 09:12:44',
+    },
+    {
+      id: 19, waybillId: 'HD2606164412', action: '修改', field: '贸易方式',
+      oldValue: '1039', newValue: '9610', operator: '天朗（付豪）',
+      timestamp: '2026-06-20 14:55:38',
+    },
+    {
+      id: 20, waybillId: 'HD2606158812', action: '创建', field: '运单',
+      oldValue: '-', newValue: '创建运单', operator: '天朗（付豪）',
+      timestamp: '2026-06-15 16:32:10',
+    },
+    {
+      id: 21, waybillId: 'HD2606158812', action: '创建', field: '贸易方式',
+      oldValue: '-', newValue: '9610', operator: '天朗（付豪）',
+      timestamp: '2026-06-15 16:32:10',
+    },
+    {
+      id: 22, waybillId: 'HD2606158812', action: '修改', field: '状态',
+      oldValue: '待揽收', newValue: '已收货', operator: '张运营',
+      timestamp: '2026-06-16 10:05:22',
+    },
+    {
+      id: 23, waybillId: 'HD2606157720', action: '创建', field: '运单',
+      oldValue: '-', newValue: '创建运单', operator: '张运营',
+      timestamp: '2026-06-15 14:08:19',
+    },
+    {
+      id: 24, waybillId: 'HD2606157720', action: '修改', field: '贸易方式',
+      oldValue: '(空)', newValue: '9710', operator: '天朗（付豪）',
+      timestamp: '2026-06-16 11:30:45',
+    },
+    {
+      id: 25, waybillId: 'HD2606157720', action: '修改', field: '贸易方式',
+      oldValue: '9710', newValue: '(空)', operator: '李客服',
+      timestamp: '2026-06-17 08:20:15',
+    },
+    {
+      id: 26, waybillId: 'HD2606156638', action: '创建', field: '运单',
+      oldValue: '-', newValue: '创建运单', operator: '天朗（付豪）',
+      timestamp: '2026-06-15 10:36:42',
+    },
+    {
+      id: 27, waybillId: 'HD2606156638', action: '创建', field: '贸易方式',
+      oldValue: '-', newValue: '0110', operator: '天朗（付豪）',
+      timestamp: '2026-06-15 10:36:42',
+    },
+    {
+      id: 28, waybillId: 'HD2606156638', action: '修改', field: '贸易方式',
+      oldValue: '0110', newValue: '9810', operator: '张运营',
+      timestamp: '2026-06-16 15:22:33',
+    },
+    {
+      id: 29, waybillId: 'HD2606156638', action: '修改', field: '状态',
+      oldValue: '待揽收', newValue: '转运中', operator: '李客服',
+      timestamp: '2026-06-17 09:18:07',
+    },
+    {
+      id: 30, waybillId: 'HD2606145526', action: '创建', field: '运单',
+      oldValue: '-', newValue: '创建运单', operator: '张运营',
+      timestamp: '2026-06-14 17:22:08',
+    },
+    {
+      id: 31, waybillId: 'HD2606145526', action: '创建', field: '贸易方式',
+      oldValue: '-', newValue: '1039', operator: '张运营',
+      timestamp: '2026-06-14 17:22:08',
+    },
+    {
+      id: 32, waybillId: 'HD2606145526', action: '修改', field: '贸易方式',
+      oldValue: '1039', newValue: '9610', operator: '天朗（付豪）',
+      timestamp: '2026-06-16 13:40:11',
+    },
+    {
+      id: 33, waybillId: 'HD2606145526', action: '修改', field: '贸易方式',
+      oldValue: '9610', newValue: '0110', operator: '天朗（付豪）',
+      timestamp: '2026-06-18 10:55:28',
+    },
+    {
+      id: 34, waybillId: 'HD2606145526', action: '修改', field: '状态',
+      oldValue: '转运中', newValue: '已收货', operator: '李客服',
+      timestamp: '2026-06-20 16:08:44',
+    },
+  ]);
+  const logIdRef = useRef(35);
+
+  const addWaybillLog = (
+    waybillId: string,
+    action: WaybillChangeLog['action'],
+    field: string,
+    oldValue: string,
+    newValue: string,
+    operator = '天朗（付豪）',
+  ) => {
+    const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const entry: WaybillChangeLog = {
+      id: logIdRef.current++,
+      waybillId,
+      action,
+      field,
+      oldValue,
+      newValue,
+      operator,
+      timestamp,
+    };
+    setWaybillLogs(prev => [entry, ...prev]);
   };
 
   // Mock Logistics Data - Pre-populated with details identical to the user's screenshot
@@ -232,24 +429,37 @@ export default function App() {
   // Add new manual waybill callback
   const handleSaveWaybill = (newWaybill: Waybill) => {
     setWaybills(prev => [newWaybill, ...prev]);
+    addWaybillLog(newWaybill.id, '创建', '运单', '-', '创建运单');
+    if (newWaybill.tradeMode) {
+      addWaybillLog(newWaybill.id, '创建', '贸易方式', '-', newWaybill.tradeMode);
+    }
   };
 
   // Delete waybills
   const handleDeleteWaybills = (idsToDelete: string[]) => {
-    setWaybills(prev => prev.filter(w => !idsToDelete.includes(w.id)));
+    setWaybills(prev => {
+      idsToDelete.forEach(id => {
+        const w = prev.find(x => x.id === id);
+        if (w) {
+          addWaybillLog(id, '删除', '运单', w.tradeMode || '-', '已删除');
+        }
+      });
+      return prev.filter(w => !idsToDelete.includes(w.id));
+    });
   };
 
   // Update Waybill Status
   const handleUpdateWaybillStatus = (id: string, nextStatus: Waybill['status']) => {
     setWaybills(prev => prev.map(w => {
       if (w.id === id) {
+        const oldStatus = w.status;
         let updateTime = w.pickupTime;
         if (nextStatus !== '待揽收' && w.pickupTime === '未揽收') {
-          // auto fill pickup time
           updateTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
         } else if (nextStatus === '待揽收') {
           updateTime = '未揽收';
         }
+        addWaybillLog(id, '修改', '状态', oldStatus, nextStatus);
         return { ...w, status: nextStatus, pickupTime: updateTime };
       }
       return w;
@@ -257,7 +467,20 @@ export default function App() {
   };
 
   const handleUpdateWaybill = (id: string, patch: Partial<Waybill>) => {
-    setWaybills(prev => prev.map(w => (w.id === id ? { ...w, ...patch } : w)));
+    setWaybills(prev => prev.map(w => {
+      if (w.id === id) {
+        // Log tradeMode changes
+        if (patch.tradeMode !== undefined && patch.tradeMode !== w.tradeMode) {
+          addWaybillLog(id, '修改', '贸易方式', w.tradeMode || '(空)', patch.tradeMode);
+        }
+        // Log other notable field changes
+        if (patch.status !== undefined && patch.status !== w.status) {
+          addWaybillLog(id, '修改', '状态', w.status, patch.status);
+        }
+        return { ...w, ...patch };
+      }
+      return w;
+    }));
   };
 
   return (
@@ -293,6 +516,7 @@ export default function App() {
         {currentTab === '运单' || currentTab === '跟单运单' || currentTab === '业务运单' ? (
           <TableSection
             waybills={waybills}
+            waybillLogs={waybillLogs}
             onAddWaybillClick={(orderType: OrderType) => {
               setModalOrderType(orderType);
               setIsCreateOpen(true);
