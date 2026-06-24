@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, RotateCcw, ChevronDown, ChevronUp, Plus, Trash2, 
   RefreshCw, Settings2, ShieldCheck, HelpCircle, ArrowUpDown,
@@ -203,8 +203,33 @@ export default function TableSection({
   const [keywords, setKeywords] = useState('');
   const [groupCode, setGroupCode] = useState('');
   const [carrier, setCarrier] = useState('');
-  const [tradeMode, setTradeMode] = useState('');
-  
+  const [tradeMode, setTradeMode] = useState<string[]>([]);
+  const [tradeModeDropdownOpen, setTradeModeDropdownOpen] = useState(false);
+  const TRADE_MODE_OPTIONS = ['9610', '9710', '9810', '0110', '1039'];
+
+  // Close trade mode dropdown on outside click
+  useEffect(() => {
+    if (!tradeModeDropdownOpen) return;
+    const handler = () => setTradeModeDropdownOpen(false);
+    window.addEventListener('click', handler);
+    return () => window.removeEventListener('click', handler);
+  }, [tradeModeDropdownOpen]);
+
+  const isTradeModeAllSelected = tradeMode.length === TRADE_MODE_OPTIONS.length + 1;
+  const toggleTradeModeAll = () => {
+    if (isTradeModeAllSelected) {
+      setTradeMode([]);
+    } else {
+      setTradeMode([...TRADE_MODE_OPTIONS, '__EMPTY__']);
+    }
+  };
+  const toggleTradeModeOpt = (code: string) => {
+    setTradeMode(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]);
+  };
+  const removeTradeModeTag = (code: string) => {
+    setTradeMode(prev => prev.filter(c => c !== code));
+  };
+
   // Active status tab filter
   const [activeStatusTab, setActiveStatusTab] = useState<string>('全部');
 
@@ -213,7 +238,7 @@ export default function TableSection({
     keywords: '',
     groupCode: '',
     carrier: '',
-    tradeMode: ''
+    tradeMode: []
   });
 
   // Collapsible search block
@@ -267,13 +292,15 @@ export default function TableSection({
     if (appliedFilters.carrier) {
       if (!item.carrier.toLowerCase().includes(appliedFilters.carrier.toLowerCase())) return false;
     }
-    // Trade mode match
-    if (appliedFilters.tradeMode) {
-      if (appliedFilters.tradeMode === '__EMPTY__') {
-        if (item.tradeMode) return false;
-      } else if (item.tradeMode !== appliedFilters.tradeMode) {
-        return false;
-      }
+    // Trade mode match (multi-select)
+    if (appliedFilters.tradeMode.length > 0) {
+      const hasEmpty = appliedFilters.tradeMode.includes('__EMPTY__');
+      const valueModes = appliedFilters.tradeMode.filter(m => m !== '__EMPTY__');
+      const itemMode = item.tradeMode || '';
+      // Match: either (empty selected AND item has no trade mode) OR (item's mode is in selected values)
+      const matchEmpty = hasEmpty && !itemMode;
+      const matchValue = valueModes.length > 0 && valueModes.includes(itemMode);
+      if (!matchEmpty && !matchValue) return false;
     }
 
     // Status Tab Match
@@ -334,6 +361,7 @@ export default function TableSection({
     e.preventDefault();
     setAppliedFilters({ keywords, groupCode, carrier, tradeMode });
     setCurrentPage(1);
+    setTradeModeDropdownOpen(false);
     addToast('已根据输入条件重新检索匹配运单', 'success');
   };
 
@@ -341,8 +369,8 @@ export default function TableSection({
     setKeywords('');
     setGroupCode('');
     setCarrier('');
-    setTradeMode('');
-    setAppliedFilters({ keywords: '', groupCode: '', carrier: '', tradeMode: '' });
+    setTradeMode([]);
+    setAppliedFilters({ keywords: '', groupCode: '', carrier: '', tradeMode: [] });
     setCurrentPage(1);
     setSelectedId(null);
     addToast('搜索条件已重置，显示全量日志', 'info');
@@ -867,25 +895,89 @@ export default function TableSection({
                   />
                 </div>
 
-                {/* Trade Mode */}
+                {/* Trade Mode — Multi-select */}
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                     贸易方式
                   </label>
-                  <select
-                    id="search-trade-mode"
-                    value={tradeMode}
-                    onChange={(e) => setTradeMode(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                  >
-                    <option value="">全部贸易方式</option>
-                    <option value="__EMPTY__">未填写</option>
-                    <option value="9610">9610</option>
-                    <option value="9710">9710</option>
-                    <option value="9810">9810</option>
-                    <option value="0110">0110</option>
-                    <option value="1039">1039</option>
-                  </select>
+                  <div className="relative" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={() => setTradeModeDropdownOpen(!tradeModeDropdownOpen)}
+                      className="flex items-center justify-between w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs hover:border-blue-400 transition-colors"
+                    >
+                      <span className={tradeMode.length === 0 ? 'text-slate-400' : 'text-slate-700'}>
+                        {tradeMode.length === 0
+                          ? '全部贸易方式'
+                          : `已选 ${tradeMode.length} 个`}
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                    </button>
+                    {tradeModeDropdownOpen && (
+                      <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl py-1">
+                        {/* 全选 option */}
+                        <button
+                          type="button"
+                          onClick={toggleTradeModeAll}
+                          className={`flex w-full items-center gap-2 px-3 py-2 text-xs text-left hover:bg-blue-50 transition-colors font-semibold border-b border-slate-100 ${
+                            isTradeModeAllSelected ? 'text-blue-700' : 'text-slate-600'
+                          }`}
+                        >
+                          <span className={`inline-flex h-4 w-4 items-center justify-center rounded border text-[10px] ${
+                            isTradeModeAllSelected
+                              ? 'bg-blue-600 border-blue-600 text-white'
+                              : 'border-slate-300'
+                          }`}>
+                            {isTradeModeAllSelected && <Check className="h-3 w-3" />}
+                          </span>
+                          全选
+                        </button>
+                        {[
+                          { code: '9610', name: '9610' },
+                          { code: '9710', name: '9710' },
+                          { code: '9810', name: '9810' },
+                          { code: '0110', name: '0110' },
+                          { code: '1039', name: '1039' },
+                          { code: '__EMPTY__', name: '未填写' },
+                        ].map(opt => {
+                          const isSelected = tradeMode.includes(opt.code);
+                          return (
+                            <button
+                              key={opt.code}
+                              type="button"
+                              onClick={() => toggleTradeModeOpt(opt.code)}
+                              className={`flex w-full items-center justify-between px-3 py-2 text-xs text-left hover:bg-blue-50 transition-colors ${
+                                isSelected ? 'text-blue-700 font-medium' : 'text-slate-600'
+                              }`}
+                            >
+                              <span>{opt.name}</span>
+                              {isSelected && <Check className="h-3.5 w-3.5 text-blue-600" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  {/* Selected trade mode tags */}
+                  {tradeMode.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {tradeMode.map(code => {
+                        const label = code === '__EMPTY__' ? '未填写' : code;
+                        return (
+                          <span key={code} className="inline-flex items-center gap-1 rounded bg-blue-50 border border-blue-200 px-2 py-0.5 text-[11px] text-blue-700 font-medium">
+                            {label}
+                            <button
+                              type="button"
+                              onClick={() => removeTradeModeTag(code)}
+                              className="text-blue-400 hover:text-red-500"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 
