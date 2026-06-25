@@ -281,7 +281,7 @@ export default function TableSection({
   const [attachmentExportModalOpen, setAttachmentExportModalOpen] = useState(false);
   const [selectedAttachmentTypes, setSelectedAttachmentTypes] = useState<string[]>([]);
   const [systemLabelPanelOpen, setSystemLabelPanelOpen] = useState(false);
-  const [systemLabelDownloadMode, setSystemLabelDownloadMode] = useState<'split' | 'continuous'>('split');
+  const [systemLabelDownloadMode, setSystemLabelDownloadMode] = useState<'split' | 'continuous'>('continuous');
   const [batchMenuOpen, setBatchMenuOpen] = useState(false);
   const [batchTradePanelOpen, setBatchTradePanelOpen] = useState(false);
   const [batchTradeMode, setBatchTradeMode] = useState('');
@@ -2002,21 +2002,21 @@ export default function TableSection({
                     <input
                       type="radio"
                       name="systemLabelDownloadMode"
-                      checked={systemLabelDownloadMode === 'split'}
-                      onChange={() => setSystemLabelDownloadMode('split')}
-                      className="h-3.5 w-3.5 text-blue-600"
-                    />
-                    <span>多票分割</span>
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-1.5">
-                    <input
-                      type="radio"
-                      name="systemLabelDownloadMode"
                       checked={systemLabelDownloadMode === 'continuous'}
                       onChange={() => setSystemLabelDownloadMode('continuous')}
                       className="h-3.5 w-3.5 text-blue-600"
                     />
                     <span>多票连续</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-1.5">
+                    <input
+                      type="radio"
+                      name="systemLabelDownloadMode"
+                      checked={systemLabelDownloadMode === 'split'}
+                      onChange={() => setSystemLabelDownloadMode('split')}
+                      className="h-3.5 w-3.5 text-blue-600"
+                    />
+                    <span>多票分割</span>
                   </label>
                 </div>
               )}
