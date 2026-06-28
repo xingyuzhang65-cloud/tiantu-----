@@ -287,6 +287,8 @@ export default function TableSection({
   const [batchTradeMode, setBatchTradeMode] = useState('');
   const [batchCustomsDeclPanelOpen, setBatchCustomsDeclPanelOpen] = useState(false);
   const [batchCustomsDeclarationType, setBatchCustomsDeclarationType] = useState('');
+  const [systemPushModalOpen, setSystemPushModalOpen] = useState(false);
+  const [systemPushAccount, setSystemPushAccount] = useState('');
 
   const [activeDetailWaybill, setActiveDetailWaybill] = useState<Waybill | null>(null);
   const [importInfoWaybill, setImportInfoWaybill] = useState<Waybill | null>(null);
@@ -587,10 +589,29 @@ export default function TableSection({
     }
   };
 
-  const handleCalculateRate = () => {
-    addToast('正在拉取最新的美东/美西空运海运基准附加费率...', 'info');
+  const selectedSystemPushWaybills = waybills.filter(item => selectedIds.includes(item.id));
+
+  const handleSystemPushOrder = () => {
+    if (selectedIds.length === 0) {
+      addToast('请在下方列表中勾选要系统推单的运单', 'warning');
+      return;
+    }
+
+    setSystemPushAccount('');
+    setSystemPushModalOpen(true);
+  };
+
+  const handleConfirmSystemPushOrder = () => {
+    if (!systemPushAccount) {
+      addToast('请选择系统推单账号', 'warning');
+      return;
+    }
+
+    const pushCount = selectedSystemPushWaybills.length;
+    setSystemPushModalOpen(false);
+    addToast(`正在通过 ${systemPushAccount} 批量推送 ${pushCount} 门运单...`, 'info');
     setTimeout(() => {
-      addToast('附加费及国内贴标打包费率计算模型更新完毕', 'success');
+      addToast(`系统推单完成，共推送 ${pushCount} 门运单`, 'success');
     }, 1000);
   };
 
@@ -1191,7 +1212,7 @@ export default function TableSection({
           })}
         </div>
 
-        {/* Right: The 3 Main Order Entry Buttons + Surcharge Settle (重算附加费) button */}
+        {/* Right: The 3 Main Order Entry Buttons + System Push Order button */}
         <div className="flex flex-wrap items-center gap-2">
           <button
             id="btn-fast-order"
@@ -1218,11 +1239,11 @@ export default function TableSection({
           </button>
           
           <button
-            id="btn-surcharge-recalc"
-            onClick={handleCalculateRate}
+            id="btn-system-push-order"
+            onClick={handleSystemPushOrder}
             className="rounded bg-[#004bb1] hover:bg-[#003b91] font-bold text-xs text-white px-4 py-1.5 shadow-sm transition-all text-center select-none cursor-pointer"
           >
-            重算附加费
+            系统推单
           </button>
         </div>
       </div>
@@ -2043,6 +2064,91 @@ export default function TableSection({
                   下载PDF
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {systemPushModalOpen && (
+        <div className="fixed inset-0 z-[75] flex items-start justify-center bg-slate-950/50 pt-16">
+          <div className="relative w-[650px] overflow-hidden rounded-sm bg-white shadow-2xl">
+            <div className="pointer-events-none absolute inset-0 opacity-[0.04]">
+              {Array.from({ length: 18 }, (_, index) => (
+                <span
+                  key={index}
+                  className="absolute -rotate-20 text-lg font-semibold text-slate-500"
+                  style={{
+                    left: `${(index % 3) * 34 + 3}%`,
+                    top: `${Math.floor(index / 3) * 18 + 5}%`,
+                  }}
+                >
+                  2026-06-28 天朗（付豪）
+                </span>
+              ))}
+            </div>
+            <div className="relative flex items-center justify-between border-b border-slate-200 px-6 py-5">
+              <h3 className="text-xl font-bold text-slate-900">系统推单</h3>
+              <button
+                type="button"
+                onClick={() => setSystemPushModalOpen(false)}
+                className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                aria-label="关闭系统推单弹窗"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="relative space-y-6 px-14 py-10 text-sm">
+              <div className="flex items-start gap-4">
+                <span className="w-20 pt-1 text-right text-slate-600">
+                  <span className="mr-1 text-red-500">*</span>运单号:
+                </span>
+                <div className="flex-1 text-slate-700">
+                  <div className="font-semibold">
+                    {selectedSystemPushWaybills[0]?.id || selectedIds[0]}
+                    {selectedSystemPushWaybills.length > 1 && (
+                      <span className="ml-2 text-blue-600">
+                        等 {selectedSystemPushWaybills.length} 门运单
+                      </span>
+                    )}
+                  </div>
+                  {selectedSystemPushWaybills.length > 1 && (
+                    <div className="mt-2 max-h-16 overflow-y-auto rounded border border-slate-100 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
+                      {selectedSystemPushWaybills.map(item => item.id).join('、')}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <label className="flex items-center gap-4">
+                <span className="w-20 text-right text-slate-600">
+                  <span className="mr-1 text-red-500">*</span>账号:
+                </span>
+                <select
+                  value={systemPushAccount}
+                  onChange={(e) => setSystemPushAccount(e.target.value)}
+                  className="h-9 flex-1 rounded border border-slate-300 bg-white px-4 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">请选择</option>
+                  <option value="天图主账号">天图主账号</option>
+                  <option value="塘厦仓账号">塘厦仓账号</option>
+                  <option value="华运达账号">华运达账号</option>
+                </select>
+              </label>
+            </div>
+            <div className="relative flex justify-end gap-3 border-t border-slate-100 px-6 py-5">
+              <button
+                type="button"
+                onClick={() => setSystemPushModalOpen(false)}
+                className="rounded border border-slate-300 bg-white px-5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSystemPushOrder}
+                className="rounded bg-[#004bb1] px-6 py-2 text-xs font-bold text-white hover:bg-[#003b91]"
+              >
+                下一步
+              </button>
             </div>
           </div>
         </div>
