@@ -210,6 +210,9 @@ export default function TableSection({
   const [customsDeclarationType, setCustomsDeclarationType] = useState<string[]>([]);
   const [customsDeclarationTypeDropdownOpen, setCustomsDeclarationTypeDropdownOpen] = useState(false);
   const CUSTOMS_DECLARATION_OPTIONS = ['托管报关', '报关退税'];
+  const SYSTEM_PUSH_ACCOUNTS = ['天图主账号', '塘厦仓账号', '华运达账号', '博创'];
+  const SYSTEM_PUSH_PRODUCTS = ['FBA头程', '海外仓补货', '国际快递', '空海运专线'];
+  const SYSTEM_PUSH_SERVICES = ['美线海卡', '美线空派', '英线海卡', '德线空派', '欧洲卡派'];
 
   // Close trade mode dropdown on outside click
   useEffect(() => {
@@ -289,8 +292,12 @@ export default function TableSection({
   const [batchCustomsDeclarationType, setBatchCustomsDeclarationType] = useState('');
   const [systemPushModalOpen, setSystemPushModalOpen] = useState(false);
   const [systemPushAccount, setSystemPushAccount] = useState('');
+  const [systemPushStep, setSystemPushStep] = useState<1 | 2>(1);
+  const [systemPushProduct, setSystemPushProduct] = useState('');
+  const [systemPushService, setSystemPushService] = useState('');
 
   const [activeDetailWaybill, setActiveDetailWaybill] = useState<Waybill | null>(null);
+  const [activeDetailTab, setActiveDetailTab] = useState('基础信息');
   const [importInfoWaybill, setImportInfoWaybill] = useState<Waybill | null>(null);
   const [importInfoFileName, setImportInfoFileName] = useState('');
   const [importInfoAttachment, setImportInfoAttachment] = useState<WaybillAttachment | null>(null);
@@ -598,18 +605,39 @@ export default function TableSection({
     }
 
     setSystemPushAccount('');
+    setSystemPushProduct('');
+    setSystemPushService('');
+    setSystemPushStep(1);
     setSystemPushModalOpen(true);
   };
 
-  const handleConfirmSystemPushOrder = () => {
+  const closeSystemPushModal = () => {
+    setSystemPushModalOpen(false);
+    setSystemPushStep(1);
+  };
+
+  const handleNextSystemPushOrder = () => {
     if (!systemPushAccount) {
       addToast('请选择系统推单账号', 'warning');
       return;
     }
 
+    setSystemPushStep(2);
+  };
+
+  const handleConfirmSystemPushOrder = () => {
+    if (!systemPushProduct) {
+      addToast('请选择系统推单产品', 'warning');
+      return;
+    }
+    if (!systemPushService) {
+      addToast('请选择系统推单服务', 'warning');
+      return;
+    }
+
     const pushCount = selectedSystemPushWaybills.length;
-    setSystemPushModalOpen(false);
-    addToast(`正在通过 ${systemPushAccount} 批量推送 ${pushCount} 门运单...`, 'info');
+    closeSystemPushModal();
+    addToast(`正在通过 ${systemPushAccount} 批量推送 ${pushCount} 门运单，产品：${systemPushProduct}，服务：${systemPushService}...`, 'info');
     setTimeout(() => {
       addToast(`系统推单完成，共推送 ${pushCount} 门运单`, 'success');
     }, 1000);
@@ -694,6 +722,7 @@ export default function TableSection({
 
   const openWaybillDetail = (waybill: Waybill) => {
     setActiveDetailWaybill(waybill);
+    setActiveDetailTab('基础信息');
   };
 
   const getCustomerOrderNo = (waybill: Waybill) => waybill.customerOrderNo || `YP${waybill.id.replace(/^HD/, '')}000301`;
@@ -886,6 +915,129 @@ export default function TableSection({
     ['仓库代码', getWarehouseCode(waybill)],
     ['预计送达周', waybill.orderWeek || '2026-06-28~2026-07-04'],
   ]);
+
+  const renderCargoInfo = (waybill: Waybill) => {
+    const boxRows = [
+      {
+        boxNo: waybill.fbaCode || '-',
+        customerBoxNo: getCustomerOrderNo(waybill),
+        systemWeight: `${Math.max(waybill.packagesCount * 6, 1)} / ${Math.max(waybill.packagesCount * 6, 1)}`,
+        carrier: waybill.carrier,
+        expressMark: '打印',
+        returnNo: waybill.associatedNo || '-',
+        status17: '-',
+        status: waybill.status,
+      },
+    ];
+    const declarationRows = [
+      {
+        cnName: waybill.description || '收纳盒',
+        enName: 'Storage Box',
+        value: (waybill.packagesCount * 1.3).toFixed(1),
+        quantity: String(Math.max(waybill.packagesCount, 1)),
+        material: (waybill.itemAttributes || ['聚酯纤维']).join('、'),
+        purpose: '收纳用',
+        brand: '无',
+        model: '无',
+        link: '无',
+        hsCode: '6307909000',
+        taxNo: waybill.tradeMode || '',
+        image: '产品图片',
+      },
+    ];
+    const cargoStat = declarationRows.reduce((sum, row) => sum + Number(row.quantity || 0), 0);
+    const declareValue = declarationRows.reduce((sum, row) => sum + Number(row.value || 0), 0);
+    const declareQty = declarationRows.reduce((sum, row) => sum + Number(row.quantity || 0), 0);
+
+    return (
+      <div className="space-y-4 p-4">
+        <section className="rounded-md bg-white p-4 shadow-sm">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <h3 className="shrink-0 text-sm font-bold text-slate-800">货箱信息</h3>
+            <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
+              {['视频检查', '查看拣货图片', '复制图片链接', '复制拣单号', '查看材积明细', '拣货', '系统箱号/FBA箱号', '转单号'].map(action => (
+                <button key={action} type="button" onClick={() => addToast(`${action}功能已预留`, 'info')} className="rounded border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50">
+                  {action}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="overflow-x-auto border border-slate-200">
+            <table className="w-full min-w-[1120px] border-collapse text-left text-[11px]">
+              <thead className="bg-slate-50 text-slate-500">
+                <tr>
+                  {['', '货箱号', '客户数据', '系统核实（材重/实重）', '承运商', '快递标', '仓库回填转单号', '17网状态', '状态'].map((head, index) => (
+                    <th key={head || index} className="border border-slate-200 px-3 py-2 font-semibold">{head}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {boxRows.map(row => (
+                  <tr key={row.boxNo} className="text-slate-700">
+                    <td className="w-10 border border-slate-200 px-3 py-4 text-center"><input type="checkbox" className="h-3.5 w-3.5 rounded border-slate-300 text-[#004bb1]" /></td>
+                    <td className="border border-slate-200 px-3 py-4 font-medium text-slate-700"><div>{row.boxNo}</div><div className="mt-1 text-slate-500">{waybill.id}</div></td>
+                    <td className="border border-slate-200 px-3 py-4">{row.customerBoxNo}</td>
+                    <td className="border border-slate-200 px-3 py-4">{row.systemWeight}</td>
+                    <td className="border border-slate-200 px-3 py-4">{row.carrier}</td>
+                    <td className="border border-slate-200 px-3 py-4"><button type="button" className="font-semibold text-blue-600 hover:underline">{row.expressMark}</button></td>
+                    <td className="border border-slate-200 px-3 py-4">{row.returnNo}</td>
+                    <td className="border border-slate-200 px-3 py-4">{row.status17}</td>
+                    <td className="border border-slate-200 px-3 py-4"><span className="font-semibold text-slate-600">{row.status}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="rounded-md bg-white p-4 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-800">报关信息</h3>
+            <div className="flex items-center gap-2 text-xs">
+              <button type="button" className="rounded bg-[#004bb1] px-3 py-1.5 font-bold text-white">品名</button>
+              <button type="button" className="rounded border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50">装箱</button>
+              <button type="button" className="rounded border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50">税金单</button>
+              <button type="button" className="rounded border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50">更新申报信息</button>
+              <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+            </div>
+          </div>
+          <div className="overflow-x-auto border border-slate-200">
+            <table className="w-full min-w-[1240px] border-collapse text-left text-[11px]">
+              <thead className="bg-slate-50 text-slate-500">
+                <tr>
+                  {['中文品名', '英文品名', '申报价值', '数量', '材质', '用途', '品牌', '型号', '销售链接', '海关编码', '税金单', '产品图片', '操作'].map(head => (
+                    <th key={head} className="border border-slate-200 px-3 py-2 font-semibold">{head}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {declarationRows.map(row => (
+                  <tr key={row.cnName} className="text-slate-700">
+                    <td className="border border-slate-200 px-3 py-3">{row.cnName}</td>
+                    <td className="border border-slate-200 px-3 py-3">{row.enName}</td>
+                    <td className="border border-slate-200 px-3 py-3">{row.value}</td>
+                    <td className="border border-slate-200 px-3 py-3">{row.quantity}</td>
+                    <td className="border border-slate-200 px-3 py-3">{row.material}</td>
+                    <td className="border border-slate-200 px-3 py-3">{row.purpose}</td>
+                    <td className="border border-slate-200 px-3 py-3">{row.brand}</td>
+                    <td className="border border-slate-200 px-3 py-3">{row.model}</td>
+                    <td className="border border-slate-200 px-3 py-3"><button type="button" className="font-semibold text-blue-600 hover:underline">{row.link}</button></td>
+                    <td className="border border-slate-200 px-3 py-3">{row.hsCode}</td>
+                    <td className="border border-slate-200 px-3 py-3">{row.taxNo || '-'}</td>
+                    <td className="border border-slate-200 px-3 py-3"><div className="flex h-10 w-20 items-center justify-center rounded border border-slate-200 bg-amber-50 text-[10px] text-amber-700">{row.image}</div></td>
+                    <td className="border border-slate-200 px-3 py-3"><button type="button" className="font-semibold text-blue-600 hover:underline">上传图片</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-4 text-xs font-bold text-[#004bb1]">
+            产品总数: {cargoStat}　申报总价值: {declareValue.toFixed(0)}　品名数量: {declarationRows.length}　平均货值: {(declareValue / Math.max(declareQty, 1)).toFixed(2)}
+          </div>
+        </section>
+      </div>
+    );
+  };
 
   const detailTabs = ['基础信息', '货物信息', '费用信息', '运踪信息', '其他信息', '中转信息'];
   const tradeModeOptions = ['9610', '9710', '9810', '0110', '1039'];
@@ -1882,24 +2034,32 @@ export default function TableSection({
               </div>
 
               <div className="flex items-center border-t border-slate-200 bg-[#eef4fb] px-4">
-                {detailTabs.map((tab, index) => (
-                  <button
-                    key={tab}
-                    type="button"
-                    onClick={() => {
-                      if (index !== 0) addToast(`${tab}模块已预留，当前展示基础信息`, 'info');
-                    }}
-                    className={`relative px-3 py-3 text-xs font-semibold ${
-                      index === 0 ? 'text-[#004bb1]' : 'text-slate-700 hover:text-[#004bb1]'
-                    }`}
-                  >
-                    {tab}
-                    {index === 0 && <span className="absolute inset-x-3 bottom-0 h-0.5 bg-[#004bb1]" />}
-                  </button>
-                ))}
+                {detailTabs.map((tab) => {
+                  const isActive = activeDetailTab === tab;
+                  return (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => {
+                        if (tab === '基础信息' || tab === '货物信息') {
+                          setActiveDetailTab(tab);
+                        } else {
+                          addToast(`${tab}模块已预留`, 'info');
+                        }
+                      }}
+                      className={`relative px-3 py-3 text-xs font-semibold ${
+                        isActive ? 'text-[#004bb1]' : 'text-slate-700 hover:text-[#004bb1]'
+                      }`}
+                    >
+                      {tab}
+                      {isActive && <span className="absolute inset-x-3 bottom-0 h-0.5 bg-[#004bb1]" />}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
+            {activeDetailTab === '货物信息' ? renderCargoInfo(activeDetailWaybill) : (
             <div className="space-y-4 p-4">
               <section className="rounded-md bg-white p-4 shadow-sm">
                 <div className="mb-4 flex items-center justify-between">
@@ -1954,6 +2114,7 @@ export default function TableSection({
                 </div>
               </section>
             </div>
+            )}
           </div>
         </div>
       )}
@@ -2090,7 +2251,7 @@ export default function TableSection({
               <h3 className="text-xl font-bold text-slate-900">系统推单</h3>
               <button
                 type="button"
-                onClick={() => setSystemPushModalOpen(false)}
+                onClick={closeSystemPushModal}
                 className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                 aria-label="关闭系统推单弹窗"
               >
@@ -2118,36 +2279,82 @@ export default function TableSection({
                   )}
                 </div>
               </div>
-              <label className="flex items-center gap-4">
-                <span className="w-20 text-right text-slate-600">
-                  <span className="mr-1 text-red-500">*</span>账号:
-                </span>
-                <select
-                  value={systemPushAccount}
-                  onChange={(e) => setSystemPushAccount(e.target.value)}
-                  className="h-9 flex-1 rounded border border-slate-300 bg-white px-4 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">请选择</option>
-                  <option value="天图主账号">天图主账号</option>
-                  <option value="塘厦仓账号">塘厦仓账号</option>
-                  <option value="华运达账号">华运达账号</option>
-                </select>
-              </label>
+
+              {systemPushStep === 1 ? (
+                <label className="flex items-center gap-4">
+                  <span className="w-20 text-right text-slate-600">
+                    <span className="mr-1 text-red-500">*</span>账号:
+                  </span>
+                  <select
+                    value={systemPushAccount}
+                    onChange={(e) => setSystemPushAccount(e.target.value)}
+                    className="h-9 flex-1 rounded border border-slate-300 bg-white px-4 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="">请选择</option>
+                    {SYSTEM_PUSH_ACCOUNTS.map(account => (
+                      <option key={account} value={account}>{account}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <>
+                  <label className="flex items-center gap-4">
+                    <span className="w-20 text-right text-slate-600">
+                      <span className="mr-1 text-red-500">*</span>产品:
+                    </span>
+                    <select
+                      value={systemPushProduct}
+                      onChange={(e) => setSystemPushProduct(e.target.value)}
+                      className="h-9 flex-1 rounded border border-slate-300 bg-white px-4 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="">请选择</option>
+                      {SYSTEM_PUSH_PRODUCTS.map(product => (
+                        <option key={product} value={product}>{product}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-4">
+                    <span className="w-20 text-right text-slate-600">
+                      <span className="mr-1 text-red-500">*</span>服务:
+                    </span>
+                    <select
+                      value={systemPushService}
+                      onChange={(e) => setSystemPushService(e.target.value)}
+                      className="h-9 flex-1 rounded border border-slate-300 bg-white px-4 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="">请选择</option>
+                      {SYSTEM_PUSH_SERVICES.map(service => (
+                        <option key={service} value={service}>{service}</option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              )}
             </div>
             <div className="relative flex justify-end gap-3 border-t border-slate-100 px-6 py-5">
+              {systemPushStep === 1 ? (
+                <button
+                  type="button"
+                  onClick={closeSystemPushModal}
+                  className="rounded border border-slate-300 bg-white px-5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  取消
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setSystemPushStep(1)}
+                  className="rounded border border-slate-300 bg-white px-5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  上一步
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setSystemPushModalOpen(false)}
-                className="rounded border border-slate-300 bg-white px-5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmSystemPushOrder}
+                onClick={systemPushStep === 1 ? handleNextSystemPushOrder : handleConfirmSystemPushOrder}
                 className="rounded bg-[#004bb1] px-6 py-2 text-xs font-bold text-white hover:bg-[#003b91]"
               >
-                下一步
+                {systemPushStep === 1 ? '下一步' : '提交'}
               </button>
             </div>
           </div>
