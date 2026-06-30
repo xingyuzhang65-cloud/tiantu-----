@@ -296,6 +296,7 @@ export default function TableSection({
   const [batchCustomsDeclarationType, setBatchCustomsDeclarationType] = useState('');
   const [systemPushModalOpen, setSystemPushModalOpen] = useState(false);
   const [systemPushAccount, setSystemPushAccount] = useState('');
+  const [transferNumberDrawerOpen, setTransferNumberDrawerOpen] = useState(false);
 
   const [activeDetailWaybill, setActiveDetailWaybill] = useState<Waybill | null>(null);
   const [activeDetailTab, setActiveDetailTab] = useState('基础信息');
@@ -601,6 +602,32 @@ export default function TableSection({
   };
 
   const selectedSystemPushWaybills = waybills.filter(item => selectedIds.includes(item.id));
+  const selectedTransferWaybills = waybills.filter(item => selectedIds.includes(item.id));
+
+  const getTransferSystemBoxNo = (waybill: Waybill, index: number) => {
+    const sequence = String(index + 1).padStart(4, '0');
+    return `${waybill.id}${sequence}`;
+  };
+
+  const getTransferNumber = (waybill: Waybill, index: number) => {
+    const seed = `${waybill.id}${waybill.fbaCode}${index + 1}`;
+    const value = seed.split('').reduce((sum, char) => sum + char.charCodeAt(0), 1321634000);
+    return String(value).slice(0, 10);
+  };
+
+  const handleTransferNumber = () => {
+    if (selectedIds.length === 0) {
+      addToast('请在下方列表中勾选要生成转单号的运单', 'warning');
+      return;
+    }
+
+    setTransferNumberDrawerOpen(true);
+  };
+
+  const handleSaveTransferNumber = () => {
+    setTransferNumberDrawerOpen(false);
+    addToast(`已保存 ${selectedTransferWaybills.length} 条转单号`, 'success');
+  };
 
   const handleSystemPushOrder = () => {
     if (selectedIds.length === 0) {
@@ -1500,7 +1527,7 @@ export default function TableSection({
           {/* 转单号 */}
           <button
             type="button"
-            onClick={() => addToast('同步追踪并映射最后一公里 UPS/FedEx 国内国际转单号...', 'info')}
+            onClick={handleTransferNumber}
             className="flex items-center gap-1 rounded bg-[#004bb1] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#003b91] transition-all"
           >
             <span>转单号</span>
@@ -2619,6 +2646,98 @@ export default function TableSection({
               >
                 下一步
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {transferNumberDrawerOpen && (
+        <div className="fixed inset-0 z-[85] bg-slate-950/50">
+          <div className="absolute right-0 top-0 flex h-full w-[620px] max-w-[92vw] flex-col bg-white shadow-2xl">
+            <div className="flex h-10 items-center justify-between border-b border-slate-100 px-3">
+              <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                <span className="h-4 w-1 rounded-full bg-slate-900" />
+                <span>转单号</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveTransferNumber}
+                  className="h-7 rounded-sm bg-[#004bb1] px-7 text-xs font-bold text-white hover:bg-[#003b91]"
+                >
+                  保存
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTransferNumberDrawerOpen(false)}
+                  className="h-7 rounded-sm border border-slate-200 bg-white px-6 text-xs font-semibold text-slate-500 hover:bg-slate-50"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+
+            <div className="relative flex-1 overflow-auto bg-white px-5 py-3">
+              <div className="pointer-events-none absolute inset-0 opacity-[0.045]">
+                {Array.from({ length: 30 }, (_, index) => (
+                  <span
+                    key={index}
+                    className="absolute -rotate-20 text-[12px] font-semibold text-slate-500"
+                    style={{
+                      left: `${(index % 4) * 27 + 7}%`,
+                      top: `${Math.floor(index / 4) * 13 + 5}%`,
+                    }}
+                  >
+                    管理员2026-06-29
+                  </span>
+                ))}
+              </div>
+
+              <div className="relative z-10 overflow-hidden border border-slate-200 bg-white">
+                <table className="w-full table-fixed border-collapse text-[11px] text-slate-700">
+                  <thead>
+                    <tr className="bg-slate-50 text-center font-semibold text-slate-600">
+                      <th className="w-10 border-b border-r border-slate-200 px-2 py-2"></th>
+                      <th className="border-b border-r border-slate-200 px-2 py-2">系统箱号</th>
+                      <th className="border-b border-r border-slate-200 px-2 py-2">FBA箱号</th>
+                      <th className="border-b border-r border-slate-200 px-2 py-2">承运公司</th>
+                      <th className="border-b border-slate-200 px-2 py-2">转单号</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedTransferWaybills.map((waybill, index) => (
+                      <tr key={waybill.id}>
+                        <td className="border-r border-slate-200 px-2 py-2 text-center text-slate-500">
+                          {index + 1}
+                        </td>
+                        <td className="border-r border-slate-200 px-2 py-2 font-mono">
+                          {getTransferSystemBoxNo(waybill, index)}
+                        </td>
+                        <td className="border-r border-slate-200 px-2 py-2 font-mono">
+                          {waybill.fbaCode}
+                        </td>
+                        <td className="border-r border-slate-200 px-2 py-2">
+                          {waybill.carrier || 'UPS'}
+                        </td>
+                        <td className="px-2 py-2 font-mono">
+                          {getTransferNumber(waybill, index)}
+                        </td>
+                      </tr>
+                    ))}
+                    {Array.from({ length: Math.max(0, 5 - selectedTransferWaybills.length) }, (_, index) => (
+                      <tr key={`empty-transfer-${index}`}>
+                        <td className="border-r border-slate-200 px-2 py-2 text-center text-slate-500">
+                          {selectedTransferWaybills.length + index + 1}
+                        </td>
+                        <td className="border-r border-slate-200 px-2 py-2">&nbsp;</td>
+                        <td className="border-r border-slate-200 px-2 py-2">&nbsp;</td>
+                        <td className="border-r border-slate-200 px-2 py-2">&nbsp;</td>
+                        <td className="px-2 py-2">&nbsp;</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
