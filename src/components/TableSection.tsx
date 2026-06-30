@@ -25,6 +25,13 @@ interface SystemLabelShipment {
   pieces: number;
 }
 
+interface PickingTransferRow {
+  systemBoxNo: string;
+  fbaBoxNo: string;
+  carrierCompany: string;
+  transferNo: string;
+}
+
 const pdfText = (value: string | number) => String(value)
   .replace(/[^\x20-\x7E]/g, '?')
   .replace(/\\/g, '\\\\')
@@ -291,6 +298,10 @@ export default function TableSection({
   const [systemPushAccount, setSystemPushAccount] = useState('');
 
   const [activeDetailWaybill, setActiveDetailWaybill] = useState<Waybill | null>(null);
+  const [activeDetailTab, setActiveDetailTab] = useState('基础信息');
+  const [pickingPanelOpen, setPickingPanelOpen] = useState(false);
+  const [pickingDrafts, setPickingDrafts] = useState<Record<string, PickingTransferRow[]>>({});
+  const [savedPickingRows, setSavedPickingRows] = useState<Record<string, PickingTransferRow[]>>({});
   const [importInfoWaybill, setImportInfoWaybill] = useState<Waybill | null>(null);
   const [importInfoFileName, setImportInfoFileName] = useState('');
   const [importInfoAttachment, setImportInfoAttachment] = useState<WaybillAttachment | null>(null);
@@ -694,6 +705,8 @@ export default function TableSection({
 
   const openWaybillDetail = (waybill: Waybill) => {
     setActiveDetailWaybill(waybill);
+    setActiveDetailTab('基础信息');
+    setPickingPanelOpen(false);
   };
 
   const getCustomerOrderNo = (waybill: Waybill) => waybill.customerOrderNo || `YP${waybill.id.replace(/^HD/, '')}000301`;
@@ -886,6 +899,92 @@ export default function TableSection({
     ['仓库代码', getWarehouseCode(waybill)],
     ['预计送达周', waybill.orderWeek || '2026-06-28~2026-07-04'],
   ]);
+
+  const getCargoBoxRows = (waybill: Waybill) => ([
+    {
+      boxNo: `${waybill.fbaCode}NTU000001`,
+      customerTracking: `${waybill.groupCode}U0001`,
+      systemWeight: `${Math.max(waybill.packagesCount * 6, 1)} / ${Math.max(waybill.packagesCount * 6, 1)}`,
+      carrier: savedPickingRows[waybill.id]?.find(row => row.carrierCompany.trim())?.carrierCompany || waybill.carrier,
+      transferNo: savedPickingRows[waybill.id]?.find(row => row.transferNo.trim())?.transferNo || '',
+      expressLabel: '打印',
+      warehouseReturnNo: waybill.associatedNo || '-',
+      networkStatus: waybill.status === '待揽收' ? '待拣货' : '已下单',
+      status: waybill.status === '异常件' ? '异常' : '查看',
+    },
+  ]);
+
+  const getDefaultTransferNoRows = (waybill: Waybill): PickingTransferRow[] => ([
+    {
+      systemBoxNo: `${waybill.groupCode}U0001`,
+      fbaBoxNo: `${waybill.fbaCode}U0001`,
+      carrierCompany: '',
+      transferNo: '',
+    },
+    ...Array.from({ length: 4 }, () => ({
+      systemBoxNo: '',
+      fbaBoxNo: '',
+      carrierCompany: '',
+      transferNo: '',
+    })),
+  ]);
+
+  const getTransferNoRows = (waybill: Waybill) => pickingDrafts[waybill.id] || getDefaultTransferNoRows(waybill);
+
+  const openPickingPanel = (waybill: Waybill) => {
+    setPickingDrafts(prev => {
+      const savedRows = savedPickingRows[waybill.id];
+      if (prev[waybill.id]) return prev;
+      return { ...prev, [waybill.id]: savedRows ? savedRows.map(row => ({ ...row })) : getDefaultTransferNoRows(waybill) };
+    });
+    setPickingPanelOpen(true);
+  };
+
+  const updatePickingDraft = (waybillId: string, rowIndex: number, field: 'carrierCompany' | 'transferNo', value: string) => {
+    setPickingDrafts(prev => {
+      const current = prev[waybillId] || (activeDetailWaybill ? getDefaultTransferNoRows(activeDetailWaybill) : []);
+      const next = current.map((row, index) => index === rowIndex ? { ...row, [field]: value } : row);
+      return { ...prev, [waybillId]: next };
+    });
+  };
+
+  const getDeclarationRows = (waybill: Waybill) => ([
+    {
+      chineseName: waybill.description.includes('收纳盒') ? '收纳盒' : waybill.description.split(/[，,]/)[0] || '收纳盒',
+      englishName: waybill.description.includes('耳机') ? 'Bluetooth Earphone Case' : 'Storage Box',
+      declareValue: waybill.country === '美国' ? '1.3' : '2.1',
+      quantity: Math.max(waybill.packagesCount * 50, 1),
+      material: waybill.itemAttributes?.length ? waybill.itemAttributes.join('/') : '聚酯纤维/塑料',
+      usage: waybill.description.includes('耳机') ? '电子配件' : '收纳用',
+      brand: '无',
+      model: '无',
+      salesLink: '无',
+      customsCode: waybill.country === '美国' ? '6307909000' : '3926909090',
+    },
+  ]);
+
+  const getProductImageStyle = (waybill: Waybill) => {
+    const isTextile = waybill.description.includes('收纳') || waybill.description.includes('纺织');
+    return isTextile
+      ? 'bg-[radial-gradient(circle_at_30%_30%,#a16207_0_8%,transparent_9%),radial-gradient(circle_at_70%_38%,#713f12_0_7%,transparent_8%),radial-gradient(circle_at_45%_72%,#92400e_0_6%,transparent_7%),linear-gradient(135deg,#fef3c7,#f8fafc)]'
+      : 'bg-[linear-gradient(135deg,#e0f2fe,#f8fafc_48%,#dbeafe)]';
+  };
+
+  const financeAdditionalFeeOptions = [
+    '超品名费',
+    '服装、袜子、鞋子',
+    '报关件木制品商检费',
+    '纺织品',
+    '玻璃制品',
+    '成人用品',
+    'FDA产品',
+    '附加费（CH）',
+    '高货值附加费',
+    '带液体附加费',
+    '非报关件木制品商检费',
+    '急单附加费',
+  ];
+  const receivableFeeHeaders = ['费用名称', '单价', '计量单位', '汇率', '币种', '费用总价', '计费时间', '添加人', '添加时间', '费用备注', '费用内部备注', '操作'];
 
   const detailTabs = ['基础信息', '货物信息', '费用信息', '运踪信息', '其他信息', '中转信息'];
   const tradeModeOptions = ['9610', '9710', '9810', '0110', '1039'];
@@ -1849,7 +1948,10 @@ export default function TableSection({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActiveDetailWaybill(null)}
+                    onClick={() => {
+                      setPickingPanelOpen(false);
+                      setActiveDetailWaybill(null);
+                    }}
                     className="rounded p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                     aria-label="关闭详情"
                   >
@@ -1882,79 +1984,446 @@ export default function TableSection({
               </div>
 
               <div className="flex items-center border-t border-slate-200 bg-[#eef4fb] px-4">
-                {detailTabs.map((tab, index) => (
+                {detailTabs.map((tab) => (
                   <button
                     key={tab}
                     type="button"
                     onClick={() => {
-                      if (index !== 0) addToast(`${tab}模块已预留，当前展示基础信息`, 'info');
+                      if (tab === '基础信息' || tab === '货物信息' || tab === '费用信息') {
+                        setActiveDetailTab(tab);
+                        setPickingPanelOpen(false);
+                      } else {
+                        addToast(`${tab}模块已预留`, 'info');
+                      }
                     }}
                     className={`relative px-3 py-3 text-xs font-semibold ${
-                      index === 0 ? 'text-[#004bb1]' : 'text-slate-700 hover:text-[#004bb1]'
+                      activeDetailTab === tab ? 'text-[#004bb1]' : 'text-slate-700 hover:text-[#004bb1]'
                     }`}
                   >
                     {tab}
-                    {index === 0 && <span className="absolute inset-x-3 bottom-0 h-0.5 bg-[#004bb1]" />}
+                    {activeDetailTab === tab && <span className="absolute inset-x-3 bottom-0 h-0.5 bg-[#004bb1]" />}
                   </button>
                 ))}
               </div>
             </div>
 
             <div className="space-y-4 p-4">
-              <section className="rounded-md bg-white p-4 shadow-sm">
-                <div className="mb-4 flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-800">基础信息</h3>
-                  <div className="flex items-center gap-3 text-xs font-semibold text-[#004bb1]">
-                    <button
-                      type="button"
-                      onClick={() => addToast('基础信息已复制', 'success')}
-                      className="flex items-center gap-1 hover:underline"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      <span>复制</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => startEditingBasicInfo(activeDetailWaybill)}
-                      className="hover:underline"
-                    >
-                      编辑
-                    </button>
-                    <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-x-20 gap-y-3 px-1 pb-3 text-[12px]">
-                  <div className="space-y-3">
-                    {basicInfoLeft(activeDetailWaybill).map(([label, value]) => (
-                      <div key={label} className="grid grid-cols-[140px_minmax(0,1fr)] items-start gap-3">
-                        <span className="text-right text-slate-600">{label}：</span>
-                        <span className="min-w-0 text-slate-800">{value || '-'}</span>
+              {activeDetailTab === '基础信息' ? (
+                <>
+                  <section className="rounded-md bg-white p-4 shadow-sm">
+                    <div className="mb-4 flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-slate-800">基础信息</h3>
+                      <div className="flex items-center gap-3 text-xs font-semibold text-[#004bb1]">
+                        <button
+                          type="button"
+                          onClick={() => addToast('基础信息已复制', 'success')}
+                          className="flex items-center gap-1 hover:underline"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          <span>复制</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => startEditingBasicInfo(activeDetailWaybill)}
+                          className="hover:underline"
+                        >
+                          编辑
+                        </button>
+                        <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
                       </div>
-                    ))}
-                  </div>
-                  <div className="space-y-3">
-                    {basicInfoRight(activeDetailWaybill).map(([label, value]) => (
-                      <div key={label} className="grid grid-cols-[140px_minmax(0,1fr)] items-start gap-3">
-                        <span className="text-right text-slate-600">{label}：</span>
-                        <span className="min-w-0 text-slate-800">{value || '-'}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </section>
+                    </div>
 
-              <section className="rounded-md bg-white p-4 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-800">VAT信息</h3>
-                  <div className="flex items-center gap-2 text-xs font-semibold text-[#004bb1]">
-                    <button type="button" className="hover:underline">编辑</button>
-                    <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
-                  </div>
-                </div>
-              </section>
+                    <div className="grid grid-cols-2 gap-x-20 gap-y-3 px-1 pb-3 text-[12px]">
+                      <div className="space-y-3">
+                        {basicInfoLeft(activeDetailWaybill).map(([label, value]) => (
+                          <div key={label} className="grid grid-cols-[140px_minmax(0,1fr)] items-start gap-3">
+                            <span className="text-right text-slate-600">{label}：</span>
+                            <span className="min-w-0 text-slate-800">{value || '-'}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="space-y-3">
+                        {basicInfoRight(activeDetailWaybill).map(([label, value]) => (
+                          <div key={label} className="grid grid-cols-[140px_minmax(0,1fr)] items-start gap-3">
+                            <span className="text-right text-slate-600">{label}：</span>
+                            <span className="min-w-0 text-slate-800">{value || '-'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="rounded-md bg-white p-4 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-slate-800">VAT信息</h3>
+                      <div className="flex items-center gap-2 text-xs font-semibold text-[#004bb1]">
+                        <button type="button" className="hover:underline">编辑</button>
+                        <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+                      </div>
+                    </div>
+                  </section>
+                </>
+              ) : activeDetailTab === '费用信息' ? (
+                <>
+                  <section className="rounded-md bg-white p-4 shadow-sm">
+                    <div className="mb-5 flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-slate-800">产品附加费</h3>
+                      <button
+                        type="button"
+                        onClick={() => addToast('确认材质功能为展示', 'info')}
+                        className="flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                      >
+                        <span>确认材质</span>
+                        <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-x-7 gap-y-3 text-xs text-slate-600">
+                      {financeAdditionalFeeOptions.map((option) => (
+                        <label key={option} className="flex h-5 items-center gap-2 whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            readOnly
+                            checked={false}
+                            onClick={() => addToast(`${option}为展示项`, 'info')}
+                            className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600"
+                          />
+                          <span>{option}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="rounded-md bg-white p-4 shadow-sm">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                      <h3 className="text-sm font-bold text-slate-800">应收费用</h3>
+                      <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
+                        <span className="rounded bg-blue-50 px-2 py-1 font-bold text-blue-600">费用合计： 0.00</span>
+                        <span className="px-1 font-bold text-blue-600">已申请: 0</span>
+                        <button
+                          type="button"
+                          onClick={() => addToast('附加费申请功能为展示', 'info')}
+                          className="rounded border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50"
+                        >
+                          附加费申请
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addToast('添加费用功能为展示', 'info')}
+                          className="rounded border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50"
+                        >
+                          添加费用
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addToast('更新附加费功能为展示', 'info')}
+                          className="rounded border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50"
+                        >
+                          更新附加费
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addToast('应收费用区块已展开', 'info')}
+                          className="rounded border border-slate-300 bg-white p-1.5 text-slate-500 hover:bg-slate-50"
+                          aria-label="展开应收费用"
+                        >
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto border border-slate-200">
+                      <table className="w-full min-w-[1160px] table-fixed border-collapse text-[11px]">
+                        <thead className="bg-slate-50 text-slate-600">
+                          <tr>
+                            {receivableFeeHeaders.map((header) => (
+                              <th key={header} className="border border-slate-200 px-3 py-2 text-left font-semibold">
+                                {header}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                      </table>
+                      <div className="flex h-44 items-center justify-center border-t border-slate-100 text-xs font-semibold text-slate-500">
+                        暂无数据
+                      </div>
+                    </div>
+                  </section>
+                </>
+              ) : (
+                <>
+                  <section className="rounded-md bg-white p-4 shadow-sm">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                      <h3 className="text-sm font-bold text-slate-800">货箱信息</h3>
+                      <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
+                        {[
+                          '视频检查',
+                          '查看拣货图片',
+                          '复制图片链接',
+                          '复制转单号',
+                          '查看材积明细',
+                          '拣货',
+                          '系统箱号/FBA箱号',
+                          '转单号',
+                        ].map((label) => (
+                          <button
+                            key={label}
+                            type="button"
+                            onClick={() => {
+                              if (label === '拣货') {
+                                openPickingPanel(activeDetailWaybill);
+                                return;
+                              }
+                              addToast(`${label}功能为展示`, 'info');
+                            }}
+                            className="rounded border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50"
+                          >
+                            {label}
+                          </button>
+                        ))}
+                        <input
+                          readOnly
+                          value=""
+                          placeholder="输入转单号,多个用,分隔"
+                          className="h-7 w-44 rounded border border-slate-300 bg-white px-3 text-xs text-slate-500 outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto border border-slate-200">
+                      <table className="w-full min-w-[1120px] table-fixed border-collapse text-[11px]">
+                        <thead className="bg-slate-50 text-slate-600">
+                          <tr>
+                            <th className="w-10 border border-slate-200 px-2 py-2 text-center">
+                              <input type="checkbox" readOnly className="h-3.5 w-3.5 rounded border-slate-300" />
+                            </th>
+                            <th className="w-36 border border-slate-200 px-3 py-2 text-left">货箱号</th>
+                            <th className="w-36 border border-slate-200 px-3 py-2 text-left">客户数据</th>
+                            <th className="w-36 border border-slate-200 px-3 py-2 text-left">系统拣货（材重/实重）</th>
+                            <th className="w-28 border border-slate-200 px-3 py-2 text-left">承运商</th>
+                            <th className="w-24 border border-slate-200 px-3 py-2 text-left">快递标</th>
+                            <th className="w-36 border border-slate-200 px-3 py-2 text-left">仓库回填转单号</th>
+                            <th className="w-28 border border-slate-200 px-3 py-2 text-left">17网状态</th>
+                            <th className="w-28 border border-slate-200 px-3 py-2 text-left">状态</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {getCargoBoxRows(activeDetailWaybill).map((row) => (
+                            <tr key={row.boxNo} className="h-20 text-slate-700">
+                              <td className="border border-slate-200 px-2 py-2 text-center align-middle">
+                                <input type="checkbox" readOnly className="h-3.5 w-3.5 rounded border-slate-300" />
+                              </td>
+                              <td className="border border-slate-200 px-3 py-2 align-middle font-mono">
+                                <div>{row.boxNo}</div>
+                                <div className="mt-1 text-slate-500">{row.customerTracking}</div>
+                              </td>
+                              <td className="border border-slate-200 px-3 py-2 align-middle">{getCustomerOrderNo(activeDetailWaybill)}</td>
+                              <td className="border border-slate-200 px-3 py-2 align-middle">{row.systemWeight}</td>
+                              <td className="border border-slate-200 px-3 py-2 align-middle">
+                                <div>{row.carrier || '-'}</div>
+                                {row.transferNo && (
+                                  <div className="mt-1 font-mono text-slate-500">{row.transferNo}</div>
+                                )}
+                              </td>
+                              <td className="border border-slate-200 px-3 py-2 align-middle">
+                                <button
+                                  type="button"
+                                  onClick={() => addToast('快递标打印功能为展示', 'info')}
+                                  className="font-semibold text-blue-600 hover:underline"
+                                >
+                                  {row.expressLabel}
+                                </button>
+                              </td>
+                              <td className="border border-slate-200 px-3 py-2 align-middle">{row.warehouseReturnNo}</td>
+                              <td className="border border-slate-200 px-3 py-2 align-middle">{row.networkStatus}</td>
+                              <td className="border border-slate-200 px-3 py-2 align-middle">
+                                <span className={row.status === '异常' ? 'font-semibold text-rose-600' : 'text-slate-500'}>{row.networkStatus}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => addToast('拣货状态详情为展示', 'info')}
+                                  className="ml-2 font-semibold text-blue-600 hover:underline"
+                                >
+                                  {row.status}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  <section className="rounded-md bg-white p-4 shadow-sm">
+                    <div className="mb-3 flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-slate-800">报关信息</h3>
+                      <div className="flex items-center gap-2 text-xs">
+                        <button type="button" onClick={() => addToast('税金单功能为展示', 'info')} className="rounded border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50">税金单</button>
+                        <button type="button" onClick={() => addToast('更新申报信息功能为展示', 'info')} className="rounded border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50">更新申报信息</button>
+                      </div>
+                    </div>
+
+                    <div className="mb-2 flex items-center gap-1">
+                      <button type="button" className="rounded-sm bg-[#004bb1] px-4 py-1.5 text-xs font-bold text-white">品名</button>
+                      <button type="button" className="rounded-sm border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-500">装箱</button>
+                    </div>
+
+                    <div className="overflow-x-auto border border-slate-200">
+                      <table className="w-full min-w-[1180px] table-fixed border-collapse text-[11px]">
+                        <thead className="bg-slate-50 text-slate-600">
+                          <tr>
+                            {['中文品名', '英文品名', '申报价值', '数量', '材质', '用途', '品牌', '型号', '销售链接', '海关编码', '税金单', '产品图片', '操作'].map((header) => (
+                              <th key={header} className="border border-slate-200 px-3 py-2 text-left">{header}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {getDeclarationRows(activeDetailWaybill).map((row) => (
+                            <tr key={`${row.chineseName}-${row.customsCode}`} className="h-16 text-slate-700">
+                              <td className="border border-slate-200 px-3 py-2">{row.chineseName}</td>
+                              <td className="border border-slate-200 px-3 py-2">{row.englishName}</td>
+                              <td className="border border-slate-200 px-3 py-2">{row.declareValue}</td>
+                              <td className="border border-slate-200 px-3 py-2">{row.quantity}</td>
+                              <td className="border border-slate-200 px-3 py-2 truncate" title={row.material}>{row.material}</td>
+                              <td className="border border-slate-200 px-3 py-2">{row.usage}</td>
+                              <td className="border border-slate-200 px-3 py-2">{row.brand}</td>
+                              <td className="border border-slate-200 px-3 py-2">{row.model}</td>
+                              <td className="border border-slate-200 px-3 py-2">
+                                <button type="button" onClick={() => addToast('销售链接功能为展示', 'info')} className="font-semibold text-blue-600 hover:underline">{row.salesLink}</button>
+                              </td>
+                              <td className="border border-slate-200 px-3 py-2 font-mono">{row.customsCode}</td>
+                              <td className="border border-slate-200 px-3 py-2"></td>
+                              <td className="border border-slate-200 px-3 py-2">
+                                <div className={`h-9 w-16 rounded-sm border border-slate-200 ${getProductImageStyle(activeDetailWaybill)}`} />
+                              </td>
+                              <td className="border border-slate-200 px-3 py-2">
+                                <button type="button" onClick={() => addToast('上传图片功能为展示', 'info')} className="font-semibold text-blue-600 hover:underline">上传图片</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-3 text-xs font-bold text-[#004bb1]">
+                      <span>产品总数: {Math.max(activeDetailWaybill.packagesCount * 50, 1)}</span>
+                      <span>申报总价值: {(Number(getDeclarationRows(activeDetailWaybill)[0].declareValue) * Math.max(activeDetailWaybill.packagesCount * 50, 1)).toFixed(0)}</span>
+                      <span>品名数量: {getDeclarationRows(activeDetailWaybill).length}</span>
+                      <span>平均货值: {getDeclarationRows(activeDetailWaybill)[0].declareValue}</span>
+                    </div>
+                  </section>
+                </>
+              )}
             </div>
           </div>
+
+          {pickingPanelOpen && (
+            <div className="absolute right-0 top-0 z-30 h-full w-[31vw] min-w-[560px] max-w-[680px] overflow-hidden bg-white shadow-2xl">
+              <div className="flex h-10 items-center border-b border-slate-200 bg-white px-4">
+                <span className="mr-2 h-5 w-1 rounded bg-slate-900" />
+                <h3 className="text-[15px] font-bold text-slate-900">转单号</h3>
+              </div>
+
+              <div className="relative h-[calc(100%-40px)] bg-white px-5 py-4">
+                <div className="pointer-events-none absolute inset-0 select-none overflow-hidden text-[12px] font-semibold text-slate-200/70">
+                  {Array.from({ length: 24 }, (_, index) => (
+                    <span
+                      key={index}
+                      className="absolute -rotate-[22deg] whitespace-nowrap"
+                      style={{
+                        left: `${(index % 3) * 34 + 11}%`,
+                        top: `${Math.floor(index / 3) * 14 + 7}%`,
+                      }}
+                    >
+                      管理员2026-06-29
+                    </span>
+                  ))}
+                </div>
+
+                <div className="relative z-10 mb-3 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const filledRows = getTransferNoRows(activeDetailWaybill).filter(row => row.systemBoxNo || row.fbaBoxNo);
+                      const missingRequired = filledRows.some(row => !row.carrierCompany.trim() || !row.transferNo.trim());
+                      if (missingRequired) {
+                        addToast('请填写承运公司和转单号', 'warning');
+                        return;
+                      }
+                      setSavedPickingRows(prev => ({
+                        ...prev,
+                        [activeDetailWaybill.id]: getTransferNoRows(activeDetailWaybill).map(row => ({ ...row })),
+                      }));
+                      addToast(`运单 ${activeDetailWaybill.id} 转单号已保存`, 'success');
+                      setPickingPanelOpen(false);
+                    }}
+                    className="rounded bg-[#004bb1] px-8 py-1.5 text-xs font-bold text-white hover:bg-[#003b91]"
+                  >
+                    保存
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPickingPanelOpen(false)}
+                    className="rounded border border-slate-300 bg-white px-8 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    取消
+                  </button>
+                </div>
+
+                <div className="relative z-10 overflow-hidden border border-slate-300 bg-white">
+                  <table className="w-full table-fixed border-collapse text-[11px] text-slate-700">
+                    <thead className="bg-slate-50 text-slate-600">
+                      <tr>
+                        <th className="w-10 border border-slate-300 px-2 py-2 text-center font-semibold"></th>
+                        <th className="border border-slate-300 px-3 py-2 text-center font-semibold">系统箱号</th>
+                        <th className="border border-slate-300 px-3 py-2 text-center font-semibold">FBA箱号</th>
+                        <th className="border border-slate-300 px-3 py-2 text-center font-semibold">承运公司</th>
+                        <th className="border border-slate-300 px-3 py-2 text-center font-semibold">转单号</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getTransferNoRows(activeDetailWaybill).map((row, index) => (
+                        <tr key={index} className="h-7">
+                          <td className="border border-slate-300 bg-slate-50 px-2 text-center font-mono text-slate-600">
+                            {index + 1}
+                          </td>
+                          <td className="border border-slate-300 px-2">
+                            <input
+                              readOnly
+                              value={row.systemBoxNo}
+                              className="h-6 w-full border-0 bg-transparent px-1 text-[11px] text-slate-700 outline-none"
+                            />
+                          </td>
+                          <td className="border border-slate-300 px-2">
+                            <input
+                              readOnly
+                              value={row.fbaBoxNo}
+                              className="h-6 w-full border-0 bg-transparent px-1 text-[11px] text-slate-700 outline-none"
+                            />
+                          </td>
+                          <td className="border border-slate-300 px-2">
+                            <input
+                              value={row.carrierCompany}
+                              onChange={(event) => updatePickingDraft(activeDetailWaybill.id, index, 'carrierCompany', event.target.value)}
+                              placeholder={row.systemBoxNo || row.fbaBoxNo ? '请输入' : ''}
+                              className="h-6 w-full border-0 bg-transparent px-1 text-[11px] text-slate-700 outline-none focus:bg-blue-50"
+                            />
+                          </td>
+                          <td className="border border-slate-300 px-2">
+                            <input
+                              value={row.transferNo}
+                              onChange={(event) => updatePickingDraft(activeDetailWaybill.id, index, 'transferNo', event.target.value)}
+                              placeholder={row.systemBoxNo || row.fbaBoxNo ? '请输入' : ''}
+                              className="h-6 w-full border-0 bg-transparent px-1 text-[11px] font-semibold text-slate-700 outline-none focus:bg-blue-50"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -2131,6 +2600,7 @@ export default function TableSection({
                   <option value="天图主账号">天图主账号</option>
                   <option value="塘厦仓账号">塘厦仓账号</option>
                   <option value="华运达账号">华运达账号</option>
+                  <option value="搏创">搏创</option>
                 </select>
               </label>
             </div>

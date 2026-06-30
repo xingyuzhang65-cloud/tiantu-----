@@ -15,6 +15,7 @@ interface SidebarProps {
 export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProps) {
   const [activeRail, setActiveRail] = useState('单据');
   const [waybillExpanded, setWaybillExpanded] = useState(true);
+  const [warehouseTransferExpanded, setWarehouseTransferExpanded] = useState(true);
   const [configExpanded, setConfigExpanded] = useState(true);
 
   // Outer rail menu items
@@ -51,6 +52,9 @@ export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProp
                 id={`rail-item-${item.name}`}
                 onClick={() => {
                   setActiveRail(item.name);
+                  if (item.name === '仓库') {
+                    onSubViewChange('仓库出货');
+                  }
                   if (item.name === '配置') {
                     onSubViewChange('贸易方式配置');
                   }
@@ -265,8 +269,95 @@ export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProp
             </div>
           )}
 
+          {activeRail === '仓库' && (
+            <>
+              <button
+                id="submenu-item-仓库概览"
+                onClick={() => onSubViewChange('仓库概览')}
+                className={`flex w-full items-center gap-2 rounded px-3 py-2 text-sm font-medium transition-colors duration-150 ${
+                  currentSubView === '仓库概览'
+                    ? 'bg-blue-50 text-blue-600 font-semibold'
+                    : 'text-slate-700 hover:bg-slate-200/50'
+                }`}
+              >
+                <Warehouse className="h-4 w-4" />
+                <span>仓库概览</span>
+              </button>
+
+              {['仓库收货', '仓库出货', '配货单', 'TK-查验列表', '预打板报表'].map((name) => (
+                <button
+                  key={name}
+                  id={`submenu-item-${name}`}
+                  onClick={() => onSubViewChange(name)}
+                  className={`flex w-full items-center rounded px-3 py-2 text-sm font-medium transition-colors duration-150 ${
+                    currentSubView === name
+                      ? 'bg-blue-50 text-blue-600 font-semibold'
+                      : 'text-slate-700 hover:bg-slate-200/50'
+                  }`}
+                >
+                  <span>{name}</span>
+                </button>
+              ))}
+
+              <div className="space-y-1">
+                <button
+                  id="btn-fold-warehouse-transfer"
+                  onClick={() => setWarehouseTransferExpanded(!warehouseTransferExpanded)}
+                  className="flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200/50"
+                >
+                  <div className="flex items-center gap-2">
+                    <ArrowRightLeft className="h-4 w-4 text-slate-600" />
+                    <span>中转管理</span>
+                  </div>
+                  {warehouseTransferExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                </button>
+
+                {warehouseTransferExpanded && (
+                  <div className="ml-4 pl-2 border-l border-slate-200 space-y-0.5">
+                    {[
+                      '中转入库',
+                      '中转出库',
+                    ].map((name) => {
+                      const isSelected = currentSubView === name;
+                      return (
+                        <button
+                          key={name}
+                          id={`submenu-item-${name}`}
+                          onClick={() => onSubViewChange(name)}
+                          className={`flex w-full items-center rounded px-3 py-1.5 text-xs transition-colors duration-150 ${
+                            isSelected
+                              ? 'bg-blue-50 text-blue-600 font-semibold'
+                              : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-800'
+                          }`}
+                        >
+                          {name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {['仓库暂存', '仓库配置', '仓库费用', '仓库报表', '排队管理', '仓库统计'].map((name) => (
+                <button
+                  key={name}
+                  id={`submenu-item-${name}`}
+                  onClick={() => onSubViewChange(name)}
+                  className={`flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium transition-colors duration-150 ${
+                    currentSubView === name
+                      ? 'bg-blue-50 text-blue-600 font-semibold'
+                      : 'text-slate-700 hover:bg-slate-200/50'
+                  }`}
+                >
+                  <span>{name}</span>
+                  <ChevronRight className="h-3 w-3 text-slate-400" />
+                </button>
+              ))}
+            </>
+          )}
+
           {/* Fallback for other rails without a configured submenu */}
-          {activeRail !== '单据' && activeRail !== '产品' && (
+          {activeRail !== '单据' && activeRail !== '产品' && activeRail !== '仓库' && (
             <div className="px-3 py-4 text-center text-xs text-slate-400">
               暂无子菜单
             </div>
