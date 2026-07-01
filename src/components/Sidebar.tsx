@@ -15,6 +15,7 @@ interface SidebarProps {
 export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProps) {
   const [activeRail, setActiveRail] = useState('单据');
   const [waybillExpanded, setWaybillExpanded] = useState(true);
+  const [printExpanded, setPrintExpanded] = useState(true);
   const [warehouseTransferExpanded, setWarehouseTransferExpanded] = useState(true);
   const [configExpanded, setConfigExpanded] = useState(true);
 
@@ -171,13 +172,39 @@ export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProp
               </div>
 
               <div className="space-y-1">
-                <div className="flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium text-slate-700 cursor-pointer hover:bg-slate-200/50">
+                <button
+                  id="btn-fold-print"
+                  onClick={() => setPrintExpanded(!printExpanded)}
+                  className="flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200/50"
+                >
                   <div className="flex items-center gap-2">
                     <Printer className="h-4 w-4 text-slate-500" />
                     <span>打单</span>
                   </div>
-                  <ChevronRight className="h-3 w-3 text-slate-400" />
-                </div>
+                  {printExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                </button>
+
+                {printExpanded && (
+                  <div className="ml-4 pl-2 border-l border-slate-200 space-y-0.5">
+                    {['快递单', '推送单'].map((name) => {
+                      const isSelected = currentSubView === name;
+                      return (
+                        <button
+                          key={name}
+                          id={`submenu-item-${name}`}
+                          onClick={() => onSubViewChange(name)}
+                          className={`flex w-full items-center rounded px-3 py-1.5 text-xs transition-colors duration-150 ${
+                            isSelected
+                              ? 'bg-blue-50 text-blue-600 font-semibold'
+                              : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-800'
+                          }`}
+                        >
+                          {name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1">
