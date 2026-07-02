@@ -296,6 +296,9 @@ export default function TableSection({
   const [batchCustomsDeclarationType, setBatchCustomsDeclarationType] = useState('');
   const [systemPushModalOpen, setSystemPushModalOpen] = useState(false);
   const [systemPushAccount, setSystemPushAccount] = useState('');
+  const [systemPushStep, setSystemPushStep] = useState<1 | 2>(1);
+  const [systemPushProduct, setSystemPushProduct] = useState('');
+  const [systemPushService, setSystemPushService] = useState('');
   const [transferNumberDrawerOpen, setTransferNumberDrawerOpen] = useState(false);
 
   const [activeDetailWaybill, setActiveDetailWaybill] = useState<Waybill | null>(null);
@@ -636,6 +639,9 @@ export default function TableSection({
     }
 
     setSystemPushAccount('');
+    setSystemPushProduct('');
+    setSystemPushService('');
+    setSystemPushStep(1);
     setSystemPushModalOpen(true);
   };
 
@@ -645,9 +651,24 @@ export default function TableSection({
       return;
     }
 
+    setSystemPushStep(2);
+  };
+
+  const handleSubmitSystemPushOrder = () => {
+    if (!systemPushProduct) {
+      addToast('请选择系统推单产品', 'warning');
+      return;
+    }
+
+    if (!systemPushService) {
+      addToast('请选择系统推单服务', 'warning');
+      return;
+    }
+
     const pushCount = selectedSystemPushWaybills.length;
     setSystemPushModalOpen(false);
-    addToast(`正在通过 ${systemPushAccount} 批量推送 ${pushCount} 门运单...`, 'info');
+    setSystemPushStep(1);
+    addToast(`正在通过 ${systemPushAccount} / ${systemPushProduct} / ${systemPushService} 批量推送 ${pushCount} 门运单...`, 'info');
     setTimeout(() => {
       addToast(`系统推单完成，共推送 ${pushCount} 门运单`, 'success');
     }, 1000);
@@ -2593,6 +2614,8 @@ export default function TableSection({
                 <X className="h-5 w-5" />
               </button>
             </div>
+            {systemPushStep === 1 ? (
+              <>
             <div className="relative space-y-6 px-14 py-10 text-sm">
               <div className="flex items-start gap-4">
                 <span className="w-20 pt-1 text-right text-slate-600">
@@ -2647,6 +2670,69 @@ export default function TableSection({
                 下一步
               </button>
             </div>
+              </>
+            ) : (
+              <>
+                <div className="relative space-y-5 px-14 py-8 text-sm">
+                  <div className="flex items-start gap-4">
+                    <span className="w-20 pt-1 text-right text-slate-600">
+                      <span className="mr-1 text-red-500">*</span>运单号:
+                    </span>
+                    <div className="flex-1 pt-1 text-slate-700">
+                      {selectedSystemPushWaybills.map(item => item.id).join(',') || selectedIds.join(',')}
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-4">
+                    <span className="w-20 text-right text-slate-600">
+                      <span className="mr-1 text-red-500">*</span>产品:
+                    </span>
+                    <select
+                      value={systemPushProduct}
+                      onChange={(e) => setSystemPushProduct(e.target.value)}
+                      className="h-9 flex-1 rounded border border-slate-300 bg-white px-4 text-sm text-slate-500 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="">请选择</option>
+                      <option value="FBA头程">FBA头程</option>
+                      <option value="美线海卡">美线海卡</option>
+                      <option value="欧洲卡航">欧洲卡航</option>
+                      <option value="海外仓一件代发">海外仓一件代发</option>
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-4">
+                    <span className="w-20 text-right text-slate-600">
+                      <span className="mr-1 text-red-500">*</span>服务:
+                    </span>
+                    <select
+                      value={systemPushService}
+                      onChange={(e) => setSystemPushService(e.target.value)}
+                      className="h-9 flex-1 rounded border border-slate-300 bg-white px-4 text-sm text-slate-500 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="">请选择</option>
+                      <option value="基础价格">基础价格</option>
+                      <option value="中欧专车25日达-HS">中欧专车25日达-HS</option>
+                      <option value="欧洲卡航-德国">欧洲卡航-德国</option>
+                      <option value="欧洲海卡-德国">欧洲海卡-德国</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="relative flex justify-end gap-2 border-t border-slate-100 px-6 py-5">
+                  <button
+                    type="button"
+                    onClick={() => setSystemPushStep(1)}
+                    className="rounded border border-slate-300 bg-white px-5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    上一步
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSubmitSystemPushOrder}
+                    className="rounded bg-[#004bb1] px-6 py-2 text-xs font-bold text-white hover:bg-[#003b91]"
+                  >
+                    提交
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
