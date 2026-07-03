@@ -6,6 +6,7 @@ import CreateModal from './components/CreateModal';
 import NotificationToast, { ToastMessage } from './components/NotificationToast';
 import RuleConfigPage from './components/RuleConfigPage';
 import WarehouseTransitOutPage from './components/WarehouseTransitOutPage';
+import OverseasTransitPage from './components/OverseasTransitPage';
 import WarehouseShipmentPage from './components/WarehouseShipmentPage';
 import ExpressOrderPage from './components/ExpressOrderPage';
 import { Waybill, OrderType, WaybillChangeLog } from './types';
@@ -543,6 +544,8 @@ export default function App() {
           <ExpressOrderPage addToast={addToast} />
         ) : currentTab === '仓库出货' ? (
           <WarehouseShipmentPage addToast={addToast} />
+        ) : currentTab === '海外中转单管理' || currentTab === '海外中转单' ? (
+          <OverseasTransitPage addToast={addToast} initialView="list" />
         ) : currentTab === '中转出库' || currentTab === '仓库概览' || currentTab === '中转入库' ? (
           <WarehouseTransitOutPage addToast={addToast} />
         ) : (
