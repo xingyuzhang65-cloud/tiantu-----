@@ -228,11 +228,11 @@ export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProp
                     <ArrowRightLeft className="h-4 w-4 text-blue-600" />
                     <span className="truncate">海外中转单管理</span>
                   </div>
-                  {overseasTransitExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                  {overseasTransitExpanded ? <ChevronDown className="h-3 w-3 text-blue-500" /> : <ChevronRight className="h-3 w-3 text-slate-400" />}
                 </button>
 
                 {overseasTransitExpanded && (
-                  <div className="ml-4 pl-2 border-l border-slate-200 space-y-0.5">
+                  <div className="ml-4 space-y-0.5 border-l border-slate-200 pl-2">
                     {['海外中转单', '拦截管理', '指令管理'].map((name) => {
                       const isSelected = currentSubView === name;
                       return (
@@ -240,13 +240,14 @@ export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProp
                           key={name}
                           id={`submenu-item-${name}`}
                           onClick={() => onSubViewChange(name)}
-                          className={`flex w-full items-center rounded px-3 py-1.5 text-xs transition-colors duration-150 ${
+                          className={`flex w-full items-center gap-2 rounded px-3 py-1.5 text-xs transition-colors duration-150 ${
                             isSelected
                               ? 'bg-blue-50 text-blue-600 font-semibold'
                               : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-800'
                           }`}
                         >
-                          {name}
+                          <ArrowRightLeft className="h-3.5 w-3.5" />
+                          <span className="truncate">{name}</span>
                         </button>
                       );
                     })}
