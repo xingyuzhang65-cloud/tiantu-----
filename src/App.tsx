@@ -7,6 +7,7 @@ import NotificationToast, { ToastMessage } from './components/NotificationToast'
 import RuleConfigPage from './components/RuleConfigPage';
 import WarehouseTransitOutPage from './components/WarehouseTransitOutPage';
 import WarehouseShipmentPage from './components/WarehouseShipmentPage';
+import OverseasTransitOrderPage from './components/OverseasTransitOrderPage';
 import ExpressOrderPage from './components/ExpressOrderPage';
 import { Waybill, OrderType, WaybillChangeLog } from './types';
 import { Settings, HelpCircle, Layers, ShieldCheck, Mail, Phone, Calendar } from 'lucide-react';
@@ -539,6 +540,8 @@ export default function App() {
           />
         ) : currentTab === '贸易方式配置' || currentTab === '贸易方式校验规则查询' ? (
           <RuleConfigPage addToast={addToast} />
+        ) : currentTab === '海外中转单' ? (
+          <OverseasTransitOrderPage addToast={addToast} />
         ) : currentTab === '快递单' ? (
           <ExpressOrderPage addToast={addToast} />
         ) : currentTab === '仓库出货' ? (
