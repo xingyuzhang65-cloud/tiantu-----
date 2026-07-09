@@ -233,7 +233,7 @@ export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProp
 
                 {overseasTransitExpanded && (
                   <div className="ml-4 space-y-0.5 border-l border-slate-200 pl-2">
-                    {['海外中转单', '拦截管理', '指令管理'].map((name) => {
+                    {['海外中转单', '暂存管理', '拦截管理', '指令管理'].map((name) => {
                       const isSelected = currentSubView === name;
                       return (
                         <button
