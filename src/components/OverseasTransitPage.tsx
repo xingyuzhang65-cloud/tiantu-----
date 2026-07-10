@@ -73,7 +73,10 @@ const statusClass: Record<TransitStatus, string> = {
   取消: 'bg-slate-100 text-slate-500',
 };
 
-const transitRows: OverseasTransitRow[] = [
+const allTransitTabs: TransitStatus[] = ['运输中', '暂存', '待确认', '已确认', '已下单', '转运中', '签收', '暂存已完成', '驳回', '取消'];
+const storageTransitTabs: TransitStatus[] = ['运输中', '暂存', '暂存已完成'];
+
+const seedTransitRows: OverseasTransitRow[] = [
   {
     headWaybillNo: 'USSZAS2508261001',
     transitWaybillNo: '',
@@ -200,6 +203,43 @@ const transitRows: OverseasTransitRow[] = [
     warehouseAt: '2025-12-09 15:42',
     status: '暂存已完成',
   },
+];
+
+const makeMockTransitRow = (status: TransitStatus, index: number): OverseasTransitRow => {
+  const statusIndex = storageTransitTabs.includes(status)
+    ? storageTransitTabs.indexOf(status)
+    : allTransitTabs.indexOf(status);
+  const totalCount = 18 + ((index * 7) % 62);
+  const completed = status === '暂存已完成';
+  const inTransit = status === '运输中';
+  const availableCount = completed ? 0 : inTransit ? totalCount : Math.max(1, totalCount - (index % 5));
+
+  return {
+    headWaybillNo: `USSZAS2607${String(statusIndex + 20).padStart(2, '0')}${String(index + 1).padStart(4, '0')}`,
+    transitWaybillNo: '',
+    fbaNo: `FBAST${String(statusIndex + 1).padStart(2, '0')}${String(index + 1).padStart(6, '0')}`,
+    customerOrderNo: `CO${String(statusIndex + 1)}${String(index + 1).padStart(5, '0')}`,
+    customer: ['阿里巴巴', '腾讯科技', '华为技术', '深圳天图电子有限公司', '宁波启航跨境仓储'][index % 5],
+    transferType: index % 4 === 0 ? '拦截' : '暂存',
+    totalCount,
+    inventoryCount: completed ? 0 : totalCount,
+    availableCount,
+    service: ['美森15日达-快递派', '美森15日达-卡派包税', 'OA以星17日达-快递派', '美线海卡'][index % 4],
+    customerRemark: completed ? '所有货箱已完成出库' : `mock-${status}-货箱仍按批次管理`,
+    overseasWarehouseRemark: completed ? '海外仓已完成库存释放' : '海外仓库存待后续勾选出库',
+    agent: ['安逸', '李客服', '张运营', ''][index % 4],
+    inboundAt: `2026-07-${String(8 + (index % 10)).padStart(2, '0')} ${String(8 + (index % 9)).padStart(2, '0')}:20`,
+    warehouseAt: `2026-07-${String(9 + (index % 10)).padStart(2, '0')} ${String(9 + (index % 8)).padStart(2, '0')}:45`,
+    status,
+  };
+};
+
+const transitRows: OverseasTransitRow[] = [
+  ...seedTransitRows,
+  ...storageTransitTabs.flatMap((status) => {
+    const existingCount = seedTransitRows.filter((row) => row.status === status).length;
+    return Array.from({ length: Math.max(0, 10 - existingCount) }, (_, index) => makeMockTransitRow(status, existingCount + index));
+  }),
 ];
 
 const linkedOrders: LinkedOrderRow[] = [
@@ -455,9 +495,6 @@ function MetricTile({
     </div>
   );
 }
-
-const allTransitTabs: TransitStatus[] = ['运输中', '暂存', '待确认', '已确认', '已下单', '转运中', '签收', '暂存已完成', '驳回', '取消'];
-const storageTransitTabs: TransitStatus[] = ['运输中', '暂存', '暂存已完成'];
 
 export default function OverseasTransitPage({ addToast, initialView = 'list', mode = 'all' }: OverseasTransitPageProps) {
   const [view, setView] = useState<'list' | 'form'>(initialView);
