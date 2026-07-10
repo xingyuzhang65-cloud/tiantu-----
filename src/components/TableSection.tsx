@@ -854,15 +854,20 @@ export default function TableSection({
     });
   };
 
+  const editableInstructionFields = new Set<keyof Waybill>(['internalNote', 'remarks']);
+
   const updateEditDraft = <K extends keyof Waybill>(field: K, value: Waybill[K]) => {
+    if (!editableInstructionFields.has(field)) return;
     setEditDraft(prev => ({ ...prev, [field]: value }));
   };
 
   const updateTextDraft = (field: keyof Waybill, value: string) => {
+    if (!editableInstructionFields.has(field)) return;
     setEditDraft(prev => ({ ...prev, [field]: value }));
   };
 
   const updateBooleanDraft = (field: keyof Waybill, value: boolean) => {
+    if (!editableInstructionFields.has(field)) return;
     setEditDraft(prev => ({ ...prev, [field]: value }));
   };
 
@@ -882,18 +887,16 @@ export default function TableSection({
 
   const saveBasicInfo = () => {
     if (!editingWaybill) return;
-    const selectedDeclarationType = textDraftValue('customsDeclarationType');
-    const selectedTradeMode = textDraftValue('tradeMode').trim();
-    if (selectedDeclarationType === '托管报关' && selectedTradeMode) {
-      addToast('当前报关方式不支持该贸易方式', 'warning');
-      return;
-    }
-    onUpdateWaybill(editingWaybill.id, editDraft);
-    const updatedWaybill = { ...editingWaybill, ...editDraft };
+    const instructionDraft: Partial<Waybill> = {
+      internalNote: textDraftValue('internalNote'),
+      remarks: textDraftValue('remarks'),
+    };
+    onUpdateWaybill(editingWaybill.id, instructionDraft);
+    const updatedWaybill = { ...editingWaybill, ...instructionDraft };
     setActiveDetailWaybill(updatedWaybill);
     setEditingWaybill(null);
     setEditDraft({});
-    addToast(`运单 ${editingWaybill.id} 基础信息已保存`, 'success');
+    addToast(`运单 ${editingWaybill.id} 指令信息已保存`, 'success');
   };
 
   const cancelBasicInfoEdit = () => {
@@ -1038,7 +1041,7 @@ export default function TableSection({
   const tradeModeOptions = ['9610', '9710', '9810', '0110', '1039'];
   const attachmentTypeOptions = ['报关', 'POD', '核对件', '其他', '底单', '税金单', 'ISA', '申报信息', '提单'];
   const itemAttributeOptions = ['带电', '带磁', '普货', '液体', '粉末', '木制品', '危险品', '纺织品', '木架', '钢铁铝', '冲货类', '电子类', '灯类', '自行车类', '鼠标键盘'];
-  const fieldClass = "h-8 w-full rounded border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500";
+  const fieldClass = "h-8 w-full cursor-not-allowed rounded border border-slate-200 bg-slate-50 px-3 text-xs text-slate-400 outline-none";
   const disabledFieldClass = "h-8 w-full rounded border border-slate-200 bg-slate-50 px-3 text-xs text-slate-400 outline-none";
   const labelClass = "w-32 shrink-0 text-right text-xs text-slate-600";
   const requiredMark = <span className="mr-0.5 text-red-500">*</span>;
@@ -3206,7 +3209,7 @@ export default function TableSection({
                       <input
                         value={textDraftValue('carrier')}
                         onChange={(e) => updateTextDraft('carrier', e.target.value)}
-                        className="h-8 flex-1 rounded border border-transparent bg-transparent px-0 text-xs font-bold text-slate-800 outline-none"
+                        className="h-8 flex-1 cursor-not-allowed rounded border border-transparent bg-transparent px-0 text-xs font-bold text-slate-400 outline-none"
                       />
                     </label>
                     <label className="flex items-center gap-3">

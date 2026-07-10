@@ -4,6 +4,13 @@ import {
   Search,
   X,
 } from 'lucide-react';
+import {
+  emptyAddressForm,
+  overseasOrderTypes,
+  overseasWarehouseCodes,
+  warehouseAddressBook,
+} from './overseasTransitAddress';
+import type { AddressFormState } from './overseasTransitAddress';
 
 interface OverseasTransitOrderPageProps {
   addToast: (msg: string, type: 'success' | 'info' | 'warning') => void;
@@ -35,20 +42,6 @@ interface OverseasTransitRow {
   inboundTime: string;
 }
 
-interface AddressFormState {
-  orderType: string;
-  warehouseCode: string;
-  zipCode: string;
-  consignee: string;
-  phone: string;
-  city: string;
-  state: string;
-  company: string;
-  addressDetail: string;
-  remark: string;
-  overseasWarehouseRemark: string;
-}
-
 interface TransitTransferRow {
   systemBoxNo: string;
   fbaBoxNo: string;
@@ -58,50 +51,6 @@ interface TransitTransferRow {
 
 const overseasTransitNodes = ['待确认', '已确认', '已下单', '转运中', '签收', '取消'];
 const orderFormStatuses = new Set(['待确认', '已确认']);
-const emptyAddressForm: AddressFormState = {
-  orderType: 'FBA',
-  warehouseCode: '',
-  zipCode: '',
-  consignee: '',
-  phone: '',
-  city: '',
-  state: '',
-  company: '',
-  addressDetail: '',
-  remark: '',
-  overseasWarehouseRemark: '',
-};
-
-const warehouseAddressBook: Record<string, Omit<AddressFormState, 'orderType' | 'warehouseCode' | 'phone' | 'company' | 'remark' | 'overseasWarehouseRemark'>> = {
-  PSC2: {
-    zipCode: '99301',
-    consignee: 'PSC2',
-    city: 'PASCO',
-    state: 'WA',
-    addressDetail: '1351 S Road 40 E',
-  },
-  ONT8: {
-    zipCode: '92551',
-    consignee: 'ONT8',
-    city: 'MORENO VALLEY',
-    state: 'CA',
-    addressDetail: '24300 Nandina Ave',
-  },
-  ABE2: {
-    zipCode: '18031',
-    consignee: 'ABE2',
-    city: 'BREINIGSVILLE',
-    state: 'PA',
-    addressDetail: '705 Boulder Dr',
-  },
-  FTW1: {
-    zipCode: '75241',
-    consignee: 'FTW1',
-    city: 'DALLAS',
-    state: 'TX',
-    addressDetail: '33333 LBJ Freeway',
-  },
-};
 
 const seedTransitRows: OverseasTransitRow[] = [
   {
@@ -457,6 +406,8 @@ const makeMockTransitRow = (status: string, index: number): OverseasTransitRow =
   const createdDay = 10 + (index % 4);
   const sequence = (index % 3) + 1;
   const carrierCode = status === '取消' ? 'CXL' : status === '签收' ? 'POD' : status === '转运中' ? 'TRN' : status === '已下单' ? 'ORD' : status === '已确认' ? 'CFM' : 'WAT';
+  const warehouseCode = overseasWarehouseCodes[index % overseasWarehouseCodes.length];
+  const warehouseAddress = warehouseAddressBook[warehouseCode];
 
   return {
     id: headNo,
@@ -470,9 +421,9 @@ const makeMockTransitRow = (status: string, index: number): OverseasTransitRow =
     latestRoute: status === '取消' ? '客户取消海外中转' : status === '签收' ? '尾程已签收' : status === '待确认' ? '待海外仓确认出库窗口' : '深圳仓-美国海外仓-OUT',
     customerRemark: `mock-${status}-第${index + 1}批勾选货箱`,
     overseasWarehouseRemark: status === '取消' ? '海外仓已终止操作' : '海外仓按批次处理出库',
-    warehouseCode: ['ONT8', 'PSC2', 'ABE2', 'FTW1', 'LAX9'][index % 5],
-    zipCode: ['92551', '99301', '18031', '75241', '91710'][index % 5],
-    orderType: ['FBA', 'Walmart', 'TikTok', '私人地址'][index % 4],
+    warehouseCode,
+    zipCode: warehouseAddress.zipCode,
+    orderType: overseasOrderTypes[index % overseasOrderTypes.length],
     salesman: ['安一', '天朗', '张运营'][index % 3],
     merchandiser: ['安逸', '李客服'][index % 2],
     status,
@@ -512,7 +463,7 @@ const baseOrderSearchFields: OrderSearchField[] = [
   { label: 'FBA单号', type: 'input', placeholder: '支持批量' },
   { label: '客户名称', type: 'select', options: ['深圳天图电子有限公司', '博创跨境贸易', '广州跨境供应链'] },
   { label: '最新路由', type: 'input', placeholder: '请输入' },
-  { label: '仓库代码', type: 'select', options: ['ONT8', 'PSC2', 'ABE2', 'FTW1'] },
+  { label: '仓库代码', type: 'select', options: overseasWarehouseCodes },
   { label: '目的地', type: 'select', options: ['美国'] },
   { label: '服务', type: 'select', options: ['美森正班13日达-卡派包税', '美线海卡'] },
   { label: '客户备注', type: 'input', placeholder: '请输入' },
@@ -532,9 +483,9 @@ const fullOrderSearchFields: OrderSearchField[] = [
   { label: 'FBA单号', type: 'input', placeholder: '支持批量' },
   { label: '客户名称', type: 'select', options: ['深圳天图电子有限公司', '博创跨境贸易', '广州跨境供应链'] },
   { label: '最新路由', type: 'input', placeholder: '请输入' },
-  { label: '仓库代码', type: 'select', options: ['ONT8', 'PSC2', 'ABE2', 'FTW1'] },
+  { label: '仓库代码', type: 'select', options: overseasWarehouseCodes },
   { label: '邮编', type: 'input', placeholder: '请输入' },
-  { label: '运单类型', type: 'select', options: ['FBA', 'Walmart', 'TikTok', '私人地址'] },
+  { label: '运单类型', type: 'select', options: overseasOrderTypes },
   { label: '目的地', type: 'select', options: ['美国'] },
   { label: '服务', type: 'select', options: ['美森正班13日达-卡派包税', '美线海卡'] },
   { label: '客户备注', type: 'input', placeholder: '请输入' },
@@ -1476,21 +1427,17 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                   <section className="rounded-2xl border border-slate-200 bg-white px-7 py-4">
                     <h3 className="mb-5 text-sm font-bold text-slate-950">收件地址信息</h3>
                     <div className="grid grid-cols-2 gap-x-16 gap-y-4">
-                      <div className="col-span-2 flex items-center gap-5 pl-[75px] text-xs text-slate-700">
-                        <span className="font-bold text-slate-900">{required}运单类型：</span>
-                        {['FBA', 'Walmart', 'TikTok', '私人地址'].map((type) => (
-                          <label key={type} className="flex items-center gap-1.5">
-                            <input
-                              type="radio"
-                              name="orderType"
-                              checked={addressForm.orderType === type}
-                              onChange={() => updateAddressField('orderType', type)}
-                              className="h-3.5 w-3.5 text-blue-600"
-                            />
-                            <span>{type}</span>
-                          </label>
-                        ))}
-                      </div>
+                      <FormRow label="运单类型" requiredMark>
+                        <select
+                          className={fieldClass}
+                          value={addressForm.orderType}
+                          onChange={(event) => updateAddressField('orderType', event.target.value)}
+                        >
+                          {overseasOrderTypes.map((type) => (
+                            <option key={type}>{type}</option>
+                          ))}
+                        </select>
+                      </FormRow>
 
                       <FormRow label="仓库代码" requiredMark>
                         <>
@@ -1502,7 +1449,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                             onChange={(event) => handleWarehouseCodeChange(event.target.value)}
                           />
                           <datalist id="overseas-warehouse-codes">
-                            {Object.keys(warehouseAddressBook).map((code) => (
+                            {overseasWarehouseCodes.map((code) => (
                               <option key={code} value={code} />
                             ))}
                           </datalist>
