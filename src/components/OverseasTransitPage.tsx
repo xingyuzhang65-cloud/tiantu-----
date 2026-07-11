@@ -626,7 +626,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
   const [storageAddressForm, setStorageAddressForm] = useState<AddressFormState>({ ...emptyAddressForm });
   const [storageInstructionRowsByOrder, setStorageInstructionRowsByOrder] = useState<Record<string, StorageInstructionRow[]>>({});
   const searchFields = mode === 'storage' ? storageSearchFields : overseasSearchFields;
-  const searchToastText = mode === 'storage' ? '已查询暂存管理数据' : '已查询海外中转单数据';
+  const searchToastText = mode === 'storage' ? '已查询海外仓暂存管理数据' : '已查询海外中转单数据';
   const isCompletedStorageOrder = activeStorageOrder?.status === '暂存已完成';
   const activeStorageOrderKey = activeStorageOrder?.headWaybillNo || '';
   const activeStorageInstructionRows = activeStorageOrderKey ? (storageInstructionRowsByOrder[activeStorageOrderKey] || []) : [];
