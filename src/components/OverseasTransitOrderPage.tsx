@@ -11,6 +11,8 @@ import {
   warehouseAddressBook,
 } from './overseasTransitAddress';
 import type { AddressFormState } from './overseasTransitAddress';
+import { getCreatedTransitChildOrders, subscribeOverseasTransitFlow } from './overseasTransitFlow';
+import type { CreatedTransitChildOrder, CreatedTransitInstruction } from './overseasTransitFlow';
 
 interface OverseasTransitOrderPageProps {
   addToast: (msg: string, type: 'success' | 'info' | 'warning') => void;
@@ -33,6 +35,8 @@ interface OverseasTransitRow {
   warehouseCode?: string;
   zipCode?: string;
   orderType?: string;
+  addressForm?: AddressFormState;
+  instructions?: CreatedTransitInstruction[];
   salesman?: string;
   merchandiser?: string;
   status: string;
@@ -40,6 +44,7 @@ interface OverseasTransitRow {
   weight: string;
   volume: string;
   inboundTime: string;
+  boxNumbers?: string[];
 }
 
 interface TransitTransferRow {
@@ -443,7 +448,7 @@ const transitRows: OverseasTransitRow[] = [
 ];
 
 const fieldClass =
-  'h-8 w-full rounded border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500';
+  'h-8 w-full rounded border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-500';
 const labelClass = 'w-28 shrink-0 text-right text-xs font-bold text-slate-900';
 const required = <span className="text-red-500">* </span>;
 
@@ -467,7 +472,7 @@ const baseOrderSearchFields: OrderSearchField[] = [
   { label: '目的地', type: 'select', options: ['美国'] },
   { label: '服务', type: 'select', options: ['美森正班13日达-卡派包税', '美线海卡'] },
   { label: '客户备注', type: 'input', placeholder: '请输入' },
-  { label: '海外仓备注', type: 'input', placeholder: '请输入' },
+  { label: '内部备注', type: 'input', placeholder: '请输入' },
   { label: '业务员', type: 'select', options: ['安一', '天朗'] },
   { label: '跟单员', type: 'select', options: ['安逸', '李客服'] },
   { label: '剩余件数', type: 'input', placeholder: '请输入' },
@@ -489,7 +494,7 @@ const fullOrderSearchFields: OrderSearchField[] = [
   { label: '目的地', type: 'select', options: ['美国'] },
   { label: '服务', type: 'select', options: ['美森正班13日达-卡派包税', '美线海卡'] },
   { label: '客户备注', type: 'input', placeholder: '请输入' },
-  { label: '海外仓备注', type: 'input', placeholder: '请输入' },
+  { label: '内部备注', type: 'input', placeholder: '请输入' },
   { label: '业务员', type: 'select', options: ['安一', '天朗'] },
   { label: '跟单员', type: 'select', options: ['安逸', '李客服'] },
   { label: '剩余件数', type: 'input', placeholder: '请输入' },
@@ -542,6 +547,16 @@ const cargoInfoRows = [
     boxHeight: '30',
   },
 ];
+
+const getCargoInfoRowsForOrder = (row: OverseasTransitRow) => {
+  const selectedBoxNumbers = row.boxNumbers?.filter(Boolean) || [];
+  if (selectedBoxNumbers.length === 0) return cargoInfoRows;
+
+  return selectedBoxNumbers.map((boxNo, index) => ({
+    ...(cargoInfoRows.find((item) => item.boxNo === boxNo) || cargoInfoRows[index] || {}),
+    boxNo,
+  }));
+};
 
 const instructionFeeRows = [
   { code: 'FY202509260001', name: '仓储渠道-免仓30天', type: '仓储费', unit: '票', price: '3', currency: '人民币', description: '提柜入仓当天起算' },
@@ -624,6 +639,7 @@ function TextareaRow({
   requiredMark,
   value,
   onChange,
+  disabled,
 }: {
   label: string;
   limit: string;
@@ -631,6 +647,7 @@ function TextareaRow({
   requiredMark?: boolean;
   value?: string;
   onChange?: (value: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex items-start gap-3">
@@ -640,9 +657,10 @@ function TextareaRow({
       </span>
       <div className="min-w-0 flex-1">
         <textarea
-          className="h-8 w-full resize-none rounded border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          className="h-8 w-full resize-none rounded border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-500"
           placeholder={placeholder}
           value={value}
+          disabled={disabled}
           onChange={(event) => onChange?.(event.target.value)}
         />
         <div className="-mt-0.5 pr-1 text-right text-[11px] text-slate-400">{limit}</div>
@@ -675,6 +693,23 @@ const getOverseasWaybillNo = (row: OverseasTransitRow) => {
 };
 
 const getOrderKey = (row: OverseasTransitRow) => getOverseasWaybillNo(row);
+
+const getParentStorageAddressForm = (row: OverseasTransitRow): AddressFormState => {
+  if (row.addressForm) return { ...emptyAddressForm, ...row.addressForm };
+  const warehouseCode = (row.warehouseCode || '').trim().toUpperCase();
+  const warehouseAddress = warehouseAddressBook[warehouseCode];
+
+  return {
+    ...emptyAddressForm,
+    orderType: row.orderType || 'FBA',
+    warehouseCode,
+    ...(warehouseAddress || {}),
+    zipCode: row.zipCode || warehouseAddress?.zipCode || '',
+    phone: row.orderType === '私人地址' ? '972-555-0188' : '',
+    remark: row.customerRemark || '',
+    overseasWarehouseRemark: row.overseasWarehouseRemark || '',
+  };
+};
 
 const formatDateTime = (date = new Date()) => {
   const pad = (value: number) => String(value).padStart(2, '0');
@@ -737,7 +772,7 @@ const getOrderLogRows = (row: OverseasTransitRow): OrderLogRow[] => [
     operatedAt: row.inboundTime,
     operator: row.merchandiser || '安逸',
     action: '备注维护',
-    field: '客户备注 / 海外仓备注',
+    field: '客户备注 / 内部备注',
     before: '-',
     after: `${row.customerRemark || '-'} / ${row.overseasWarehouseRemark || '-'}`,
     note: '同步客户要求与海外仓操作备注',
@@ -813,12 +848,13 @@ function OrderLogDrawer({
 export default function OverseasTransitOrderPage({ addToast, activeNode = '待确认', onNodeChange }: OverseasTransitOrderPageProps) {
   const [activeTab, setActiveTab] = useState(activeNode);
   const [selectedIds, setSelectedIds] = useState<string[]>(['YT2507100001_0710_1', 'YT2507100002_0710_1', 'YT2507100004_0711_1']);
+  const [createdTransitRows, setCreatedTransitRows] = useState<CreatedTransitChildOrder[]>(getCreatedTransitChildOrders);
   const [activeOrder, setActiveOrder] = useState<OverseasTransitRow | null>(null);
   const [activeLogOrder, setActiveLogOrder] = useState<OverseasTransitRow | null>(null);
   const [showInstructionModal, setShowInstructionModal] = useState(false);
   const [feeModalTarget, setFeeModalTarget] = useState<FeeModalTarget>('instruction');
   const [selectedFeeCodes, setSelectedFeeCodes] = useState<string[]>(instructionFeeRows.slice(0, 3).map((row) => row.code));
-  const [instructionRows, setInstructionRows] = useState<InstructionFeeRow[]>([]);
+  const [instructionRowsByOrder, setInstructionRowsByOrder] = useState<Record<string, InstructionFeeRow[]>>({});
   const [quoteRowsByOrder, setQuoteRowsByOrder] = useState<Record<string, QuoteFeeRow[]>>({});
   const [quoteLogsByOrder, setQuoteLogsByOrder] = useState<Record<string, OrderLogRow[]>>({});
   const [attachmentRowsByOrder, setAttachmentRowsByOrder] = useState<Record<string, AttachmentRow[]>>({});
@@ -833,18 +869,23 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
   const [editingAttachment, setEditingAttachment] = useState<AttachmentRow | null>(null);
   const [deletingAttachment, setDeletingAttachment] = useState<AttachmentRow | null>(null);
   const [attachmentForm, setAttachmentForm] = useState<AttachmentFormState>(emptyAttachmentForm);
-  const [addressForm, setAddressForm] = useState<AddressFormState>(emptyAddressForm);
+  const [addressFormsByOrder, setAddressFormsByOrder] = useState<Record<string, AddressFormState>>({});
+  const [editingOrderFormKey, setEditingOrderFormKey] = useState<string | null>(null);
   const [downstreamDetailTab, setDownstreamDetailTab] = useState<DownstreamDetailTab>('费用信息');
-  const filteredRows = transitRows.filter((row) => row.status === activeTab);
+  const filteredRows = [...transitRows, ...createdTransitRows].filter((row) => row.status === activeTab);
   const usesOrderFormTemplate = (status: string) => orderFormStatuses.has(status);
   const showOverseasWaybillNo = !usesOrderFormTemplate(activeTab);
   const orderSearchFields = showOverseasWaybillNo ? fullOrderSearchFields : baseOrderSearchFields;
   const quoteEditableStatuses = new Set(['已下单', '转运中', '签收']);
   const activeOrderKey = activeOrder ? getOrderKey(activeOrder) : '';
+  const addressForm = activeOrder ? (addressFormsByOrder[activeOrderKey] || getParentStorageAddressForm(activeOrder)) : emptyAddressForm;
+  const isOrderFormEditing = !!activeOrder && usesOrderFormTemplate(activeOrder.status) && editingOrderFormKey === activeOrderKey;
+  const activeInstructionRows = activeOrder ? (instructionRowsByOrder[activeOrderKey] || activeOrder.instructions || []) : [];
   const activeQuoteRows = activeOrder ? (quoteRowsByOrder[activeOrderKey] || quoteFeeRows) : [];
   const canEditQuoteFees = !!activeOrder && quoteEditableStatuses.has(activeOrder.status);
   const activeAttachmentRows = activeOrder ? (attachmentRowsByOrder[activeOrderKey] || attachmentRows) : [];
 
+  useEffect(() => subscribeOverseasTransitFlow(() => setCreatedTransitRows(getCreatedTransitChildOrders())), []);
   useEffect(() => {
     if (overseasTransitNodes.includes(activeNode)) {
       setActiveTab(activeNode);
@@ -868,22 +909,25 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
     setDeletingAttachment(null);
     setAttachmentForm(emptyAttachmentForm);
     setTransferPanelOpen(false);
+    setEditingOrderFormKey(null);
     setDownstreamDetailTab('费用信息');
-    setAddressForm(emptyAddressForm);
+    if (usesOrderFormTemplate(row.status)) {
+      const orderKey = getOrderKey(row);
+      setAddressFormsByOrder((prev) => (prev[orderKey] ? prev : { ...prev, [orderKey]: getParentStorageAddressForm(row) }));
+      if (row.instructions) setInstructionRowsByOrder((prev) => (prev[orderKey] ? prev : { ...prev, [orderKey]: row.instructions || [] }));
+    }
     addToast(`已打开 ${getOrderKey(row)} 中转下单页面`, 'info');
   };
 
-  const openLog = (row?: OverseasTransitRow) => {
+  const openLog = () => {
     const selectedCurrentRow = filteredRows.find((item) => selectedIds.includes(getOrderKey(item)));
-    const nextRow = row || selectedCurrentRow || filteredRows[0];
-    if (!nextRow) {
-      addToast('当前节点暂无可查看的日志', 'warning');
+    if (!selectedCurrentRow) {
+      addToast('请先勾选当前节点下需要查看日志的中转运单', 'warning');
       return;
     }
-    setActiveLogOrder(nextRow);
-    addToast(`已打开 ${nextRow.id} 操作日志`, 'info');
+    setActiveLogOrder(selectedCurrentRow);
+    addToast(`已打开 ${selectedCurrentRow.id} 操作日志`, 'info');
   };
-
   const appendQuoteLog = (orderId: string, log: Omit<OrderLogRow, 'id'>) => {
     setQuoteLogsByOrder((prev) => {
       const currentLogs = prev[orderId] || [];
@@ -942,21 +986,21 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
       addToast(`已添加 ${nextRows.length} 条报价费用明细`, 'success');
       return;
     }
-    setInstructionRows(selectedFees);
+    if (activeOrder) setInstructionRowsByOrder((prev) => ({ ...prev, [getOrderKey(activeOrder)]: selectedFees }));
     setShowInstructionModal(false);
     addToast(`已添加 ${selectedFees.length} 条操作指令`, 'success');
   };
 
   const saveEditingInstruction = () => {
     if (!editingInstruction) return;
-    setInstructionRows((prev) => prev.map((row) => (row.code === editingInstruction.code ? editingInstruction : row)));
+    if (activeOrder) setInstructionRowsByOrder((prev) => ({ ...prev, [getOrderKey(activeOrder)]: (prev[getOrderKey(activeOrder)] || activeInstructionRows).map((row) => (row.code === editingInstruction.code ? editingInstruction : row)) }));
     setEditingInstruction(null);
     addToast('操作指令已更新', 'success');
   };
 
   const confirmDeleteInstruction = () => {
     if (!deletingInstruction) return;
-    setInstructionRows((prev) => prev.filter((item) => item.code !== deletingInstruction.code));
+    if (activeOrder) setInstructionRowsByOrder((prev) => ({ ...prev, [getOrderKey(activeOrder)]: (prev[getOrderKey(activeOrder)] || activeInstructionRows).filter((item) => item.code !== deletingInstruction.code) }));
     setDeletingInstruction(null);
     addToast('操作指令已删除', 'info');
   };
@@ -1124,12 +1168,13 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
   };
 
   const getDefaultTransferRows = (row: OverseasTransitRow): TransitTransferRow[] => {
-    const rowCount = Math.max(3, Math.min(row.packages || 1, 5));
+    const selectedBoxNumbers = row.boxNumbers?.filter(Boolean) || [];
+    const rowCount = selectedBoxNumbers.length || Math.max(row.packages || 1, 1);
     return Array.from({ length: rowCount }, (_, index) => {
       const sequence = String(index + 1).padStart(4, '0');
       return {
         systemBoxNo: `${getOverseasWaybillNo(row)}U${sequence}`,
-        fbaBoxNo: `${row.fbaCode}U${sequence}`,
+        fbaBoxNo: selectedBoxNumbers[index] || `${row.fbaCode}U${sequence}`,
         carrierCompany: row.channel,
         transferNo: getTransitTransferNumber(row, index),
       };
@@ -1210,24 +1255,47 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
     setTransferPanelOpen(false);
   };
 
+  const submitOrderFormEdit = () => {
+    if (!activeOrder || !activeOrderKey || !isOrderFormEditing) return;
+    if (!addressForm.orderType || !addressForm.warehouseCode || !addressForm.zipCode || !addressForm.city || !addressForm.addressDetail) { addToast('请先填写完整的收件地址信息', 'warning'); return; }
+    setEditingOrderFormKey(null);
+    addToast(`海外中转单 ${activeOrderKey} 收件地址信息已提交`, 'success');
+  };
+
+  const cancelOrderFormEdit = () => {
+    if (!activeOrder || !activeOrderKey) return;
+    setAddressFormsByOrder((prev) => ({ ...prev, [activeOrderKey]: getParentStorageAddressForm(activeOrder) }));
+    setEditingOrderFormKey(null);
+  };
+
   const updateAddressField = (field: keyof AddressFormState, value: string) => {
-    setAddressForm((prev) => ({ ...prev, [field]: value }));
+    if (!activeOrder || !activeOrderKey || !isOrderFormEditing) return;
+    setAddressFormsByOrder((prev) => {
+      const current = prev[activeOrderKey] || getParentStorageAddressForm(activeOrder);
+      return { ...prev, [activeOrderKey]: { ...current, [field]: value } };
+    });
   };
 
   const handleWarehouseCodeChange = (value: string) => {
+    if (!activeOrder || !activeOrderKey || !isOrderFormEditing) return;
     const nextCode = value.trim().toUpperCase();
     const matchedWarehouse = warehouseAddressBook[nextCode];
 
-    setAddressForm((prev) => ({
-      ...prev,
-      warehouseCode: nextCode,
-      ...(matchedWarehouse || {}),
-      company: prev.company,
-      remark: prev.remark,
-      overseasWarehouseRemark: prev.overseasWarehouseRemark,
-    }));
+    setAddressFormsByOrder((prev) => {
+      const current = prev[activeOrderKey] || getParentStorageAddressForm(activeOrder);
+      return {
+        ...prev,
+        [activeOrderKey]: {
+          ...current,
+          warehouseCode: nextCode,
+          ...(matchedWarehouse || {}),
+          company: current.company,
+          remark: current.remark,
+          overseasWarehouseRemark: current.overseasWarehouseRemark,
+        },
+      };
+    });
   };
-
   return (
     <div className="relative flex-1 overflow-auto bg-slate-100 p-4 font-sans text-slate-700 max-h-[calc(100vh-3rem)]">
       <div className="mb-3 rounded-md border border-slate-200 bg-white p-4 shadow-sm">
@@ -1297,7 +1365,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
         </div>
 
         <div className="overflow-x-auto border border-slate-200">
-          <table className={`w-full ${showOverseasWaybillNo ? 'min-w-[2520px]' : 'min-w-[2040px]'} table-fixed border-collapse text-[11px]`}>
+          <table className={`w-full ${showOverseasWaybillNo ? 'min-w-[2424px]' : 'min-w-[1944px]'} table-fixed border-collapse text-[11px]`}>
             <thead className="bg-slate-50 text-slate-700">
               <tr>
                 <th className="w-10 border border-slate-200 px-2 py-2 text-center">
@@ -1316,14 +1384,14 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                 <th className="w-20 border border-slate-200 px-3 py-2 text-center">目的地</th>
                 <th className="w-56 border border-slate-200 px-3 py-2 text-center">服务</th>
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">客户备注</th>
-                <th className="w-36 border border-slate-200 px-3 py-2 text-center">海外仓备注</th>
+                <th className="w-36 border border-slate-200 px-3 py-2 text-center">内部备注</th>
                 <th className="w-24 border border-slate-200 px-3 py-2 text-center">业务员</th>
                 <th className="w-24 border border-slate-200 px-3 py-2 text-center">跟单员</th>
                 <th className="w-24 border border-slate-200 px-3 py-2 text-center">剩余件数</th>
                 <th className="w-24 border border-slate-200 px-3 py-2 text-center">重量</th>
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">（剩余件）总方数</th>
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">入仓时间</th>
-                <th className="w-24 border border-slate-200 px-3 py-2 text-center">操作</th>
+
               </tr>
             </thead>
             <tbody>
@@ -1363,23 +1431,11 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                   <td className="border border-slate-200 px-3 text-center">{row.weight}</td>
                   <td className="border border-slate-200 px-3 text-center">{row.volume}</td>
                   <td className="border border-slate-200 px-3 text-center font-mono text-slate-500">{row.inboundTime}</td>
-                  <td className="border border-slate-200 px-3 text-center">
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        openLog(row);
-                      }}
-                      className="font-semibold text-blue-600 hover:underline"
-                    >
-                      日志
-                    </button>
-                  </td>
                 </tr>
               ))}
               {filteredRows.length === 0 && (
                 <tr>
-                  <td colSpan={showOverseasWaybillNo ? 22 : 18} className="h-24 border border-slate-200 text-center text-slate-400">
+                  <td colSpan={showOverseasWaybillNo ? 21 : 17} className="h-24 border border-slate-200 text-center text-slate-400">
                     当前节点暂无海外中转单
                   </td>
                 </tr>
@@ -1394,9 +1450,14 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
           <div className="absolute right-0 top-0 flex h-full w-[66vw] min-w-[980px] flex-col bg-slate-50 shadow-2xl">
             <div className="flex h-11 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-9">
               <h2 className="text-sm font-bold text-slate-950">{usesOrderFormTemplate(activeOrder.status) ? '中转下单' : '确认运单信息'}</h2>
-              <button type="button" onClick={() => setActiveOrder(null)} className="rounded p-1 text-slate-700 hover:bg-slate-100" aria-label="关闭">
-                <X className="h-5 w-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                {usesOrderFormTemplate(activeOrder.status) && !isOrderFormEditing && (
+                  <button type="button" onClick={() => setEditingOrderFormKey(activeOrderKey)} className="rounded border border-slate-300 bg-white px-5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">编辑</button>
+                )}
+                <button type="button" onClick={() => { setEditingOrderFormKey(null); setActiveOrder(null); }} className="rounded p-1 text-slate-700 hover:bg-slate-100" aria-label="关闭">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
@@ -1419,7 +1480,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                       <span>{activeOrder.customerRemark || '-'}</span>
                     </div>
                     <div>
-                      <span className="font-bold text-slate-900">海外仓备注：</span>
+                      <span className="font-bold text-slate-900">内部备注：</span>
                       <span>{activeOrder.overseasWarehouseRemark || '-'}</span>
                     </div>
                   </div>
@@ -1431,6 +1492,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                         <select
                           className={fieldClass}
                           value={addressForm.orderType}
+                          disabled={!isOrderFormEditing}
                           onChange={(event) => updateAddressField('orderType', event.target.value)}
                         >
                           {overseasOrderTypes.map((type) => (
@@ -1446,6 +1508,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                             list="overseas-warehouse-codes"
                             placeholder="请输入仓库代码"
                             value={addressForm.warehouseCode}
+                            disabled={!isOrderFormEditing}
                             onChange={(event) => handleWarehouseCodeChange(event.target.value)}
                           />
                           <datalist id="overseas-warehouse-codes">
@@ -1460,6 +1523,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                           className={fieldClass}
                           placeholder="请输入邮编"
                           value={addressForm.zipCode}
+                          disabled={!isOrderFormEditing}
                           onChange={(event) => updateAddressField('zipCode', event.target.value)}
                         />
                       </FormRow>
@@ -1468,6 +1532,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                           className={fieldClass}
                           placeholder="请输入收件人"
                           value={addressForm.consignee}
+                          disabled={!isOrderFormEditing}
                           onChange={(event) => updateAddressField('consignee', event.target.value)}
                         />
                       </FormRow>
@@ -1477,6 +1542,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                             className={fieldClass}
                             placeholder="请输入电话"
                             value={addressForm.phone}
+                            disabled={!isOrderFormEditing}
                             onChange={(event) => updateAddressField('phone', event.target.value)}
                           />
                         </FormRow>
@@ -1486,6 +1552,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                           className={fieldClass}
                           placeholder="请输入城市"
                           value={addressForm.city}
+                          disabled={!isOrderFormEditing}
                           onChange={(event) => updateAddressField('city', event.target.value)}
                         />
                       </FormRow>
@@ -1494,6 +1561,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                           className={fieldClass}
                           placeholder="请输入州"
                           value={addressForm.state}
+                          disabled={!isOrderFormEditing}
                           onChange={(event) => updateAddressField('state', event.target.value)}
                         />
                       </FormRow>
@@ -1502,6 +1570,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                           className={fieldClass}
                           placeholder="请输入公司"
                           value={addressForm.company}
+                          disabled={!isOrderFormEditing}
                           onChange={(event) => updateAddressField('company', event.target.value)}
                         />
                       </FormRow>
@@ -1511,6 +1580,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                         limit={`${addressForm.addressDetail.length}/100`}
                         requiredMark
                         value={addressForm.addressDetail}
+                        disabled={!isOrderFormEditing}
                         onChange={(value) => updateAddressField('addressDetail', value)}
                       />
                       <TextareaRow
@@ -1518,17 +1588,20 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                         placeholder="请输入客户备注"
                         limit={`${addressForm.remark.length}/500`}
                         value={addressForm.remark}
+                        disabled={!isOrderFormEditing}
                         onChange={(value) => updateAddressField('remark', value)}
                       />
                       <TextareaRow
-                        label="海外仓备注"
-                        placeholder="请输入海外仓备注"
+                        label="内部备注"
+                        placeholder="请输入内部备注"
                         limit={`${addressForm.overseasWarehouseRemark.length}/500`}
                         value={addressForm.overseasWarehouseRemark}
+                        disabled={!isOrderFormEditing}
                         onChange={(value) => updateAddressField('overseasWarehouseRemark', value)}
                       />
                     </div>
                   </section>
+
                 </>
               ) : (
                 <>
@@ -1557,7 +1630,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                       <DetailField label="业务员">{activeOrder.salesman || '-'}</DetailField>
                       <DetailField label="跟单员">{activeOrder.merchandiser || '-'}</DetailField>
                       <DetailField label="客户备注">{activeOrder.customerRemark || '-'}</DetailField>
-                      <DetailField label="海外仓备注">{activeOrder.overseasWarehouseRemark || '-'}</DetailField>
+                      <DetailField label="内部备注">{activeOrder.overseasWarehouseRemark || '-'}</DetailField>
                       <DetailField label="快递标">
                         <button className="font-bold text-[#004bb1] hover:underline" type="button">打印</button>
                         <span className="ml-2 rounded bg-yellow-300 px-1.5 py-0.5 text-[10px] font-bold leading-none text-amber-700 shadow-sm">24</span>
@@ -1676,7 +1749,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                             <thead className="bg-slate-50 text-slate-700">
                               <tr>
                                 <th className="w-10 border border-slate-200 px-2 py-2 text-center">
-                                  <input type="checkbox" readOnly className="h-3.5 w-3.5 rounded border-slate-300" />
+                                  <input type="checkbox" readOnly disabled className="h-3.5 w-3.5 rounded border-slate-300 disabled:opacity-60" />
                                 </th>
                                 <th className="w-44 border border-slate-200 px-3 py-2 text-left">货箱号</th>
                                 <th className="w-32 border border-slate-200 px-3 py-2 text-left">客户数据</th>
@@ -1692,7 +1765,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                               {getTransitCargoBoxRows(activeOrder).map((row) => (
                                 <tr key={row.boxNo} className="h-20 text-slate-700">
                                   <td className="border border-slate-200 px-2 py-2 text-center align-middle">
-                                    <input type="checkbox" readOnly className="h-3.5 w-3.5 rounded border-slate-300" />
+                                    <input type="checkbox" readOnly disabled className="h-3.5 w-3.5 rounded border-slate-300 disabled:opacity-60" />
                                   </td>
                                   <td className="border border-slate-200 px-3 py-2 align-middle font-mono">
                                     <div>{row.boxNo}</div>
@@ -1817,7 +1890,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                         <input
                           type="checkbox"
                           readOnly
-                          checked={cargoMaterialChecked.has(item)}
+                          checked={cargoMaterialChecked.has(item)} disabled
                           className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600"
                         />
                         <span>{item}</span>
@@ -1825,20 +1898,13 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                     ))}
                   </div>
 
-                  <button
-                    type="button"
-                    className="mb-3 rounded bg-blue-600 px-5 py-1.5 text-xs font-bold text-white hover:bg-blue-700"
-                  >
-                    新增10行
-                  </button>
-
                   <div className="overflow-x-auto border border-slate-200">
                     <table className="w-full min-w-[2480px] table-fixed border-collapse text-[11px] text-slate-700">
                       <thead className="bg-slate-50 text-slate-700">
                         <tr>
                           <th className="w-12 border border-slate-200 px-2 py-2 text-center">#</th>
                           <th className="w-12 border border-slate-200 px-2 py-2 text-center">
-                            <input type="checkbox" readOnly className="h-3.5 w-3.5 rounded border-slate-300" />
+                            <input type="checkbox" readOnly disabled className="h-3.5 w-3.5 rounded border-slate-300 disabled:opacity-60" />
                           </th>
                           <th className="w-52 border border-slate-200 px-3 py-2 text-center">FBA/IBR箱号</th>
                           <th className="w-36 border border-slate-200 px-3 py-2 text-center">PO Number</th>
@@ -1862,12 +1928,12 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                       </thead>
                       <tbody>
                         {Array.from({ length: 12 }).map((_, index) => {
-                          const row = cargoInfoRows[index];
+                          const row = getCargoInfoRowsForOrder(activeOrder)[index];
                           return (
                             <tr key={index} className="h-8">
                               <td className="border border-slate-200 px-2 text-center text-slate-500">{index + 1}</td>
                               <td className="border border-slate-200 px-2 text-center">
-                                <input type="checkbox" readOnly className="h-3.5 w-3.5 rounded border-slate-300" />
+                                <input type="checkbox" readOnly disabled className="h-3.5 w-3.5 rounded border-slate-300 disabled:opacity-60" />
                               </td>
                               <td className="border border-slate-200 px-3 text-center font-mono">{row?.boxNo || ''}</td>
                               <td className="border border-slate-200 px-3 text-center">{row?.poNumber || ''}</td>
@@ -1917,8 +1983,8 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                     </tr>
                   </thead>
                   <tbody>
-                    {instructionRows.length > 0 ? (
-                      instructionRows.map((row) => (
+                    {activeInstructionRows.length > 0 ? (
+                      activeInstructionRows.map((row) => (
                         <tr key={row.code} className="h-9 text-slate-700">
                           <td className="border border-slate-200 px-3 text-center">{row.name}</td>
                           <td className="border border-slate-200 px-3 text-center">{row.type}</td>
@@ -1960,7 +2026,12 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                 </table>
               </section>
               )}
-
+              {usesOrderFormTemplate(activeOrder.status) && isOrderFormEditing && (
+                <div className="mt-6 flex justify-center gap-4 border-t border-slate-200 pt-5">
+                  <button type="button" onClick={submitOrderFormEdit} className="rounded bg-blue-600 px-10 py-2 text-xs font-bold text-white hover:bg-blue-700">提交</button>
+                  <button type="button" onClick={cancelOrderFormEdit} className="rounded border border-slate-300 bg-white px-10 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">取消</button>
+                </div>
+              )}
               {showInstructionModal && (
                 <div className="absolute inset-0 z-[90] bg-black/50">
                   <div className="absolute right-0 top-0 flex h-full w-[72vw] min-w-[980px] flex-col bg-white shadow-2xl">

@@ -1,11 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
   ClipboardList,
   Download,
-  FilePlus2,
+  FileText,
   MoreHorizontal,
   PackageCheck,
   Plus,
@@ -26,6 +26,14 @@ import {
   warehouseAddressBook,
 } from './overseasTransitAddress';
 import type { AddressFormState } from './overseasTransitAddress';
+import {
+  getCreatedTransitChildOrders,
+  getRemovedStorageBoxCount,
+  getRemovedStorageBoxNumbers,
+  submitStorageBoxesAsTransitChild,
+  subscribeOverseasTransitFlow,
+} from './overseasTransitFlow';
+import type { CreatedTransitChildOrder } from './overseasTransitFlow';
 
 interface OverseasTransitPageProps {
   addToast: (msg: string, type: 'success' | 'info' | 'warning') => void;
@@ -41,7 +49,7 @@ interface OverseasTransitRow {
   fbaNo: string;
   customerOrderNo: string;
   customer: string;
-  transferType: '暂存' | '拦截';
+  transferType: string;
   totalCount: number;
   inventoryCount: number;
   availableCount: number;
@@ -80,20 +88,22 @@ interface LinkedOrderRow {
   status: string;
 }
 
-type StorageInstructionRow = {
-  id: string;
-  feeName: string;
-  feeType: string;
-  unit: string;
-  price: string;
+const storageInstructionFeeRows = [
+  { code: 'FY202509260001', name: '仓储渠道-免仓30天', type: '仓储费', unit: '票', price: '3', currency: '人民币', description: '提柜入仓当天起算' },
+  { code: 'FY202509260002', name: '仓储渠道-31-90天', type: '仓储费', unit: '票', price: '4', currency: '人民币', description: '按1级单价收取' },
+  { code: 'FY202509260003', name: '仓储渠道-90天以上', type: '仓储费', unit: '票', price: '2', currency: '人民币', description: '按2级单价收取' },
+  { code: 'FY202509260004', name: '拦截-免仓7天', type: '仓储费', unit: '票', price: '4', currency: '人民币', description: '提柜入仓当天起算' },
+  { code: 'FY202509260005', name: '拦截-免仓8-90天', type: '仓储费', unit: '票', price: '3', currency: '人民币', description: '按1级单价收取' },
+  { code: 'FY202509260006', name: '拦截-免仓90天以上', type: '仓储费', unit: '票', price: '2', currency: '人民币', description: '按2级单价收取' },
+  { code: 'FY202509260007', name: '扣货-无免仓期', type: '仓储费', unit: '票', price: '2', currency: '人民币', description: '按1级单价收取' },
+];
+
+type StorageInstructionFeeRow = (typeof storageInstructionFeeRows)[number];
+type StorageInstructionRow = StorageInstructionFeeRow & {
   quantity: string;
-  currency: string;
   addedAt: string;
   addedBy: string;
-  description: string;
 };
-
-type StorageInstructionEditableField = 'feeName' | 'feeType' | 'unit' | 'price' | 'quantity' | 'currency' | 'description';
 
 const statusClass: Record<TransitStatus, string> = {
   运输中: 'bg-blue-50 text-blue-700',
@@ -297,6 +307,42 @@ const transitRows: OverseasTransitRow[] = [
   }),
 ];
 
+const getTransitRowsWithRemovedBoxes = () => transitRows.map((row) => {
+  const removed = getRemovedStorageBoxCount(row.headWaybillNo);
+  if (!removed) return row;
+  return {
+    headWaybillNo: row.headWaybillNo,
+    transitWaybillNo: '',
+    fbaNo: '',
+    customerOrderNo: '',
+    customer: '',
+    transferType: '',
+    totalCount: Math.max(0, row.totalCount - removed),
+    inventoryCount: Math.max(0, row.inventoryCount - removed),
+    availableCount: Math.max(0, row.availableCount - removed),
+    service: '',
+    customerRemark: '',
+    overseasWarehouseRemark: '',
+    salesman: '',
+    agent: '',
+    inboundAt: '',
+    warehouseAt: '',
+    status: row.status,
+    shippedCount: undefined,
+    latestRoute: '',
+    routeUpdatedAt: '',
+    transferNo: '',
+    referenceId: '',
+    warehouseCode: '',
+    chargeWeight: '',
+    actualWeight: '',
+    volumetricWeight: '',
+    volumeCbm: '',
+    containerNo: '',
+    zipCode: '',
+  };
+});
+const getStorageBoxNumber = (index: number) => (index < 2 ? `FBA19DTKOWLD000000${index + 1}` : '');
 const linkedOrders: LinkedOrderRow[] = [
   {
     id: 'HD2607031028',
@@ -340,11 +386,11 @@ const fieldClass =
   'h-8 rounded border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500';
 const searchLabelClass = 'w-20 shrink-0 text-right font-semibold text-slate-700';
 const searchControlClass = `${fieldClass} min-w-0 flex-1`;
+const storageInstructionFieldClass = `${fieldClass} w-full`;
 const drawerFieldClass =
   'h-8 w-full rounded border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500';
 const drawerLabelClass = 'w-28 shrink-0 text-right text-xs font-bold text-slate-900';
-const instructionInputClass =
-  'h-7 w-full rounded border border-slate-300 bg-white px-2 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500';
+
 const requiredMark = <span className="text-red-500">* </span>;
 
 type SearchField = {
@@ -365,8 +411,8 @@ type TransitLogRow = {
   note: string;
 };
 
-const tableHeaders = ['头程运单号', 'FBA单号', '客户单号', '客户全称', '中转单类型', '总件数', '库存件数', '可用件数', '服务', '客户备注', '海外仓备注', '代理', '入仓时间', '仓租时间', '操作'];
-const inTransitStorageHeaders = ['头程运单号', 'FBA单号', '客户单号', '客户全称', '发货件数', '最新路由', '路由更新时间', '转单号', 'ReferenceId', '仓库代码', '业务员', '收费重', '实重', '材积重', '方数', '柜号', '邮编', '服务', '客户备注', '海外仓备注'];
+const tableHeaders = ['头程运单号', 'FBA单号', '客户单号', '客户全称', '中转单类型', '总件数', '库存件数', '可用件数', '服务', '客户备注', '内部备注', '代理', '入仓时间', '仓租时间', '操作'];
+const inTransitStorageHeaders = ['头程运单号', 'FBA单号', '客户单号', '客户全称', '发货件数', '最新路由', '路由更新时间', '转单号', 'ReferenceId', '仓库代码', '业务员', '收费重', '实重', '材积重', '方数', '柜号', '邮编', '服务', '客户备注', '内部备注'];
 
 const overseasSearchFields: SearchField[] = [
   { label: '头程运单号', type: 'input', placeholder: '支持批量' },
@@ -382,7 +428,7 @@ const overseasSearchFields: SearchField[] = [
   { label: '入仓时间', type: 'select', options: ['近 7 天', '近 30 天'] },
   { label: '仓租时间', type: 'select', options: ['近 7 天', '近 30 天'] },
   { label: '客户备注', type: 'input', placeholder: '请输入' },
-  { label: '海外仓备注', type: 'input', placeholder: '请输入' },
+  { label: '内部备注', type: 'input', placeholder: '请输入' },
 ];
 
 const storageSearchFields: SearchField[] = overseasSearchFields;
@@ -407,18 +453,6 @@ const formatLocalDateTime = () => {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:00`;
 };
 
-const createStorageInstructionRow = (index: number): StorageInstructionRow => ({
-  id: `storage-instruction-${Date.now()}-${index}`,
-  feeName: '',
-  feeType: '操作费',
-  unit: '票',
-  price: '',
-  quantity: '1',
-  currency: '人民币',
-  addedAt: formatLocalDateTime(),
-  addedBy: '管理员',
-  description: '',
-});
 
 const getTransitLogRows = (row: OverseasTransitRow): TransitLogRow[] => [
   {
@@ -446,7 +480,7 @@ const getTransitLogRows = (row: OverseasTransitRow): TransitLogRow[] => [
     operatedAt: row.warehouseAt,
     operator: row.agent || '安逸',
     action: '备注维护',
-    field: '客户备注 / 海外仓备注',
+    field: '客户备注 / 内部备注',
     before: '-',
     after: `${row.customerRemark || '-'} / ${row.overseasWarehouseRemark || '-'}`,
     note: '同步客户说明与海外仓操作备注',
@@ -595,6 +629,25 @@ function DrawerReadonlyField({
   );
 }
 
+function StorageInstructionFormRow({
+  label,
+  requiredMark,
+  children,
+}: {
+  label: string;
+  requiredMark?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex min-w-0 items-center gap-3">
+      <span className={drawerLabelClass}>
+        {requiredMark ? <span className="text-red-500">* </span> : null}
+        {label}
+      </span>
+      <div className="min-w-0 flex-1">{children}</div>
+    </label>
+  );
+}
 function MetricTile({
   label,
   value,
@@ -623,27 +676,37 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
   const [activeTab, setActiveTab] = useState<TransitStatus | '全部'>(mode === 'storage' ? '运输中' : '全部');
   const [activeStorageOrder, setActiveStorageOrder] = useState<OverseasTransitRow | null>(null);
   const [activeLogOrder, setActiveLogOrder] = useState<OverseasTransitRow | null>(null);
+  const [pageTransitRows, setPageTransitRows] = useState<OverseasTransitRow[]>(getTransitRowsWithRemovedBoxes);
+  const [selectedStorageBoxIndexesByOrder, setSelectedStorageBoxIndexesByOrder] = useState<Record<string, number[]>>({});
   const [storageAddressForm, setStorageAddressForm] = useState<AddressFormState>({ ...emptyAddressForm });
   const [storageInstructionRowsByOrder, setStorageInstructionRowsByOrder] = useState<Record<string, StorageInstructionRow[]>>({});
+  const [showStorageInstructionModal, setShowStorageInstructionModal] = useState(false);
+  const [selectedStorageInstructionFeeCodes, setSelectedStorageInstructionFeeCodes] = useState<string[]>(storageInstructionFeeRows.slice(0, 3).map((row) => row.code));
+  const [editingStorageInstruction, setEditingStorageInstruction] = useState<StorageInstructionRow | null>(null);
+  const [deletingStorageInstruction, setDeletingStorageInstruction] = useState<StorageInstructionRow | null>(null);
+  useEffect(() => subscribeOverseasTransitFlow(() => setPageTransitRows(getTransitRowsWithRemovedBoxes())), []);
   const searchFields = mode === 'storage' ? storageSearchFields : overseasSearchFields;
   const searchToastText = mode === 'storage' ? '已查询海外仓暂存管理数据' : '已查询海外中转单数据';
   const isCompletedStorageOrder = activeStorageOrder?.status === '暂存已完成';
   const activeStorageOrderKey = activeStorageOrder?.headWaybillNo || '';
+  const activeStorageSelectedBoxIndexes = activeStorageOrderKey ? (selectedStorageBoxIndexesByOrder[activeStorageOrderKey] || []) : [];
+  const activeStorageRemovedBoxNumbers = activeStorageOrderKey ? getRemovedStorageBoxNumbers(activeStorageOrderKey) : [];
+  const isStorageSubmissionStatus = mode === 'storage' && (activeStorageOrder?.status === '运输中' || activeStorageOrder?.status === '暂存');
   const activeStorageInstructionRows = activeStorageOrderKey ? (storageInstructionRowsByOrder[activeStorageOrderKey] || []) : [];
 
   const filteredRows = useMemo(() => {
     const rows = mode === 'storage'
-      ? transitRows.filter((row) => storageTransitTabs.includes(row.status))
-      : transitRows;
+      ? pageTransitRows.filter((row) => storageTransitTabs.includes(row.status))
+      : pageTransitRows;
     return activeTab === '全部' ? rows : rows.filter((row) => row.status === activeTab);
-  }, [activeTab, mode]);
+  }, [activeTab, mode, pageTransitRows]);
   const isStorageInTransitTab = mode === 'storage' && activeTab === '运输中';
   const visibleTableHeaders = isStorageInTransitTab ? inTransitStorageHeaders : tableHeaders;
 
   const getTabCount = (tab: TransitStatus) => {
     const scopedRows = mode === 'storage'
-      ? transitRows.filter((row) => storageTransitTabs.includes(row.status))
-      : transitRows;
+      ? pageTransitRows.filter((row) => storageTransitTabs.includes(row.status))
+      : pageTransitRows;
     return scopedRows.filter((row) => row.status === tab).length;
   };
 
@@ -690,41 +753,98 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
     }));
   };
 
-  const addStorageInstructionRow = () => {
-    if (!activeStorageOrderKey) return;
-    setStorageInstructionRowsByOrder((prev) => {
-      const currentRows = prev[activeStorageOrderKey] || [];
-      return {
-        ...prev,
-        [activeStorageOrderKey]: [...currentRows, createStorageInstructionRow(currentRows.length + 1)],
-      };
-    });
-    addToast('已新增操作指令', 'success');
-  };
-
-  const updateStorageInstructionRow = (rowId: string, field: StorageInstructionEditableField, value: string) => {
-    if (!activeStorageOrderKey) return;
-    setStorageInstructionRowsByOrder((prev) => {
-      const currentRows = prev[activeStorageOrderKey] || [];
-      return {
-        ...prev,
-        [activeStorageOrderKey]: currentRows.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)),
-      };
+  const toggleStorageBoxIndex = (index: number) => {
+    if (!activeStorageOrderKey || !isStorageSubmissionStatus || !getStorageBoxNumber(index)) return;
+    setSelectedStorageBoxIndexesByOrder((prev) => {
+      const current = prev[activeStorageOrderKey] || [];
+      return { ...prev, [activeStorageOrderKey]: current.includes(index) ? current.filter((item) => item !== index) : [...current, index] };
     });
   };
 
-  const removeStorageInstructionRow = (rowId: string) => {
-    if (!activeStorageOrderKey) return;
-    setStorageInstructionRowsByOrder((prev) => {
-      const currentRows = prev[activeStorageOrderKey] || [];
-      return {
-        ...prev,
-        [activeStorageOrderKey]: currentRows.filter((row) => row.id !== rowId),
-      };
-    });
-    addToast('已删除操作指令', 'info');
+  const cancelStorageSubmission = () => {
+    if (activeStorageOrderKey) setSelectedStorageBoxIndexesByOrder((prev) => ({ ...prev, [activeStorageOrderKey]: [] }));
+    setActiveStorageOrder(null);
   };
 
+  const submitStorageOrder = () => {
+    if (!activeStorageOrder || !activeStorageOrderKey || !isStorageSubmissionStatus) return;
+    const boxNumbers = activeStorageSelectedBoxIndexes.map(getStorageBoxNumber).filter(Boolean);
+    if (boxNumbers.length === 0) { addToast('请先勾选需要提交的箱号', 'warning'); return; }
+    if (!storageAddressForm.orderType || !storageAddressForm.warehouseCode || !storageAddressForm.zipCode || !storageAddressForm.city || !storageAddressForm.addressDetail) { addToast('请先填写完整的收件地址信息', 'warning'); return; }
+    const orderSeq = getCreatedTransitChildOrders().filter((item) => item.parentHeadWaybillNo === activeStorageOrderKey).length + 1;
+    const now = formatLocalDateTime();
+    const child: CreatedTransitChildOrder = {
+      id: `${activeStorageOrderKey}_${now.slice(5, 10).replace('-', '')}_${orderSeq}`,
+      parentHeadWaybillNo: activeStorageOrderKey,
+      addressForm: { ...storageAddressForm },
+      instructions: activeStorageInstructionRows.map((row) => ({ ...row })),
+      fbaCode: activeStorageOrder.fbaNo || `FBA-${activeStorageOrderKey}`,
+      customerName: activeStorageOrder.customer,
+      destination: storageAddressForm.state ? `${storageAddressForm.city}, ${storageAddressForm.state}` : '美国',
+      channel: activeStorageOrder.service,
+      childCreatedAt: now,
+      orderSeq,
+      transferNo: '',
+      latestRoute: '待海外仓确认出库窗口',
+      customerRemark: storageAddressForm.remark,
+      overseasWarehouseRemark: storageAddressForm.overseasWarehouseRemark,
+      warehouseCode: storageAddressForm.warehouseCode,
+      zipCode: storageAddressForm.zipCode,
+      orderType: storageAddressForm.orderType,
+      salesman: activeStorageOrder.salesman || '安一',
+      merchandiser: '天朗（付豪）',
+      status: '待确认',
+      packages: boxNumbers.length,
+      weight: `${(boxNumbers.length * 6).toFixed(1)}kg`,
+      volume: (boxNumbers.length * 0.078).toFixed(2),
+      inboundTime: activeStorageOrder.warehouseAt,
+      boxNumbers,
+    };
+    submitStorageBoxesAsTransitChild(child);
+    setSelectedStorageBoxIndexesByOrder((prev) => ({ ...prev, [activeStorageOrderKey]: [] }));
+    setStorageInstructionRowsByOrder((prev) => ({ ...prev, [activeStorageOrderKey]: [] }));
+    setStorageAddressForm({ ...emptyAddressForm });
+    setActiveStorageOrder(null);
+    addToast(`已提交 ${boxNumbers.length} 箱，已生成子单并流转至海外中转单待确认状态`, 'success');
+  };
+  const openStorageInstructionSelector = () => {
+    if (!activeStorageOrderKey) return;
+    setShowStorageInstructionModal(true);
+  };
+
+  const toggleStorageInstructionFeeCode = (code: string) => {
+    setSelectedStorageInstructionFeeCodes((prev) => (prev.includes(code) ? prev.filter((item) => item !== code) : [...prev, code]));
+  };
+
+  const confirmStorageInstructionFees = () => {
+    if (!activeStorageOrderKey) return;
+    const selectedFees = storageInstructionFeeRows
+      .filter((row) => selectedStorageInstructionFeeCodes.includes(row.code))
+      .map((row) => ({ ...row, quantity: '1', addedAt: formatLocalDateTime(), addedBy: '天朗（付豪）' }));
+    setStorageInstructionRowsByOrder((prev) => ({ ...prev, [activeStorageOrderKey]: selectedFees }));
+    setShowStorageInstructionModal(false);
+    addToast(`已添加 ${selectedFees.length} 条操作指令`, 'success');
+  };
+
+  const saveEditingStorageInstruction = () => {
+    if (!editingStorageInstruction || !activeStorageOrderKey) return;
+    setStorageInstructionRowsByOrder((prev) => ({
+      ...prev,
+      [activeStorageOrderKey]: (prev[activeStorageOrderKey] || []).map((row) => (row.code === editingStorageInstruction.code ? editingStorageInstruction : row)),
+    }));
+    setEditingStorageInstruction(null);
+    addToast('操作指令已更新', 'success');
+  };
+
+  const confirmDeleteStorageInstruction = () => {
+    if (!deletingStorageInstruction || !activeStorageOrderKey) return;
+    setStorageInstructionRowsByOrder((prev) => ({
+      ...prev,
+      [activeStorageOrderKey]: (prev[activeStorageOrderKey] || []).filter((row) => row.code !== deletingStorageInstruction.code),
+    }));
+    setDeletingStorageInstruction(null);
+    addToast('操作指令已删除', 'info');
+  };
   if (view === 'form') {
     return (
       <div className="flex-1 overflow-auto bg-slate-100 p-4 font-sans text-slate-700 max-h-[calc(100vh-3rem)]">
@@ -832,7 +952,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
               <input className={`${fieldClass} w-full`} defaultValue="预留仓库存合并出库，海外仓收货后按 FBA 批次入仓。" />
             </label>
             <label className="col-span-2 space-y-1.5">
-              <span className="font-semibold text-slate-700">海外仓备注</span>
+              <span className="font-semibold text-slate-700">内部备注</span>
               <input className={`${fieldClass} w-full`} defaultValue="海外仓收货后同步回传入仓异常。" />
             </label>
             <label className="col-span-2 space-y-1.5">
@@ -1064,7 +1184,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
               <h2 className="text-sm font-bold text-slate-950">{isCompletedStorageOrder ? '暂存已完成详情' : '中转下单'}</h2>
               <button
                 type="button"
-                onClick={() => setActiveStorageOrder(null)}
+                onClick={() => { setActiveStorageOrder(null); setShowStorageInstructionModal(false); setEditingStorageInstruction(null); setDeletingStorageInstruction(null); }}
                 className="rounded p-1 text-slate-700 hover:bg-slate-100"
                 aria-label="关闭"
               >
@@ -1091,7 +1211,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                     <DrawerReadonlyField label="入仓时间">{activeStorageOrder.inboundAt}</DrawerReadonlyField>
                     <DrawerReadonlyField label="仓租时间">{activeStorageOrder.warehouseAt}</DrawerReadonlyField>
                     <DrawerReadonlyField label="客户备注" className="col-span-2">{activeStorageOrder.customerRemark || '-'}</DrawerReadonlyField>
-                    <DrawerReadonlyField label="海外仓备注" className="col-span-2">{activeStorageOrder.overseasWarehouseRemark || '-'}</DrawerReadonlyField>
+                    <DrawerReadonlyField label="内部备注" className="col-span-2">{activeStorageOrder.overseasWarehouseRemark || '-'}</DrawerReadonlyField>
                   </div>
                 </section>
               ) : (
@@ -1112,7 +1232,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                     <span>{activeStorageOrder.customerRemark}</span>
                   </div>
                   <div>
-                    <span className="font-bold text-slate-900">海外仓备注：</span>
+                    <span className="font-bold text-slate-900">内部备注：</span>
                     <span>{activeStorageOrder.overseasWarehouseRemark}</span>
                   </div>
                 </div>
@@ -1136,7 +1256,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                       <DrawerReadonlyField label="公司">{storageAddressForm.company || '-'}</DrawerReadonlyField>
                       <DrawerReadonlyField label="地址详情" required className="col-span-2">{storageAddressForm.addressDetail}</DrawerReadonlyField>
                       <DrawerReadonlyField label="客户备注" className="col-span-2">{storageAddressForm.remark || '-'}</DrawerReadonlyField>
-                      <DrawerReadonlyField label="海外仓备注" className="col-span-2">{storageAddressForm.overseasWarehouseRemark || '-'}</DrawerReadonlyField>
+                      <DrawerReadonlyField label="内部备注" className="col-span-2">{storageAddressForm.overseasWarehouseRemark || '-'}</DrawerReadonlyField>
                     </>
                   ) : (
                     <>
@@ -1234,8 +1354,8 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                         onChange={(value) => updateStorageAddressField('remark', value)}
                       />
                       <DrawerTextareaRow
-                        label="海外仓备注"
-                        placeholder="请输入海外仓备注"
+                        label="内部备注"
+                        placeholder="请输入内部备注"
                         limit={`${storageAddressForm.overseasWarehouseRemark.length}/500`}
                         value={storageAddressForm.overseasWarehouseRemark}
                         onChange={(value) => updateStorageAddressField('overseasWarehouseRemark', value)}
@@ -1271,16 +1391,16 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                       <tr>
                         {['#', '', 'FBA/IBR箱号', 'PO Number', '产品英文名', '产品中文名', '产品申报单价', '产品申报数量', '产品申报总价', '产品材质', '产品海关编码', '产品用途', '产品品牌', '产品型号', '产品图片链接', '产品销售链接', '货箱重量(KG)', '货箱长度(CM)', '货箱宽度(CM)', '货箱高度(CM)'].map((head) => (
                           <th key={head || 'check'} className="border border-slate-200 px-3 py-2 text-center">
-                            {head || <input type="checkbox" disabled={isCompletedStorageOrder} readOnly className="h-3.5 w-3.5 cursor-not-allowed rounded border-slate-300 disabled:opacity-60" />}
+                            {head ? head : <input type="checkbox" disabled={!isStorageSubmissionStatus} checked={activeStorageSelectedBoxIndexes.length === 2} onChange={(event) => setSelectedStorageBoxIndexesByOrder((prev) => ({ ...prev, [activeStorageOrderKey]: event.target.checked ? [0, 1] : [] }))} className="h-3.5 w-3.5 rounded border-slate-300 disabled:cursor-not-allowed disabled:opacity-60" />}
                           </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {Array.from({ length: 10 }).map((_, index) => (
-                        <tr key={index} className="h-8">
+                        <tr key={index} className={activeStorageRemovedBoxNumbers.includes(getStorageBoxNumber(index)) ? 'hidden' : 'h-8'}>
                           <td className="border border-slate-200 px-2 text-center text-slate-500">{index + 1}</td>
-                          <td className="border border-slate-200 px-2 text-center"><input type="checkbox" disabled={isCompletedStorageOrder} readOnly className="h-3.5 w-3.5 cursor-not-allowed rounded border-slate-300 disabled:opacity-60" /></td>
+                          <td className="border border-slate-200 px-2 text-center"><input type="checkbox" disabled={!isStorageSubmissionStatus || index > 1 || !getStorageBoxNumber(index) || activeStorageRemovedBoxNumbers.includes(getStorageBoxNumber(index))} checked={activeStorageSelectedBoxIndexes.includes(index)} onChange={() => toggleStorageBoxIndex(index)} className="h-3.5 w-3.5 rounded border-slate-300 disabled:cursor-not-allowed disabled:opacity-60" /></td>
                           <td className="border border-slate-200 px-3 text-center font-mono">{index < 2 ? `FBA19DTKOWLD000000${index + 1}` : ''}</td>
                           <td className="border border-slate-200 px-3 text-center">{index < 2 ? '1DT1ZZLZ' : ''}</td>
                           <td className="border border-slate-200 px-3 text-center">{index < 2 ? "dog's hind leg joints" : ''}</td>
@@ -1308,28 +1428,310 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
 
               <section className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-4">
                 <h3 className="mb-4 pl-3 text-sm font-bold text-slate-950">操作指令</h3>
-                <button type="button" className="mb-5 ml-3 rounded bg-blue-600 px-7 py-1.5 text-xs font-bold text-white hover:bg-blue-700">
+                  <button
+                    type="button"
+                    onClick={openStorageInstructionSelector}
+                    className="mb-5 ml-3 rounded bg-blue-600 px-7 py-1.5 text-xs font-bold text-white hover:bg-blue-700"
+                  >
                   新增
                 </button>
                 <table className="w-full table-fixed border-collapse text-xs">
                   <thead className="bg-slate-50 text-slate-900">
                     <tr>
                       {['费用名称', '费用类型', '*计费单位', '*计费单价（元）', '*计费数量', '*币种', '总价（元）', '添加时间', '添加人', '描述', '操作'].map((head) => (
-                        <th key={head} className="border border-slate-200 px-3 py-3 text-center font-bold">{head}</th>
+                        <th key={head} className="border border-slate-200 px-3 py-3 text-center font-bold">
+                          {head}
+                        </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    <tr>
-                      <td colSpan={11} className="h-24 border border-slate-200 text-center text-slate-300">
-                        <FilePlus2 className="mx-auto mb-2 h-8 w-8 text-slate-200" />
-                        暂无数据
-                      </td>
-                    </tr>
+                    {activeStorageInstructionRows.length > 0 ? (
+                      activeStorageInstructionRows.map((row) => (
+                        <tr key={row.code} className="h-9 text-slate-700">
+                          <td className="border border-slate-200 px-3 text-center">{row.name}</td>
+                          <td className="border border-slate-200 px-3 text-center">{row.type}</td>
+                          <td className="border border-slate-200 px-3 text-center">{row.unit}</td>
+                          <td className="border border-slate-200 px-3 text-center">{row.price}</td>
+                          <td className="border border-slate-200 px-3 text-center">{row.quantity || '1'}</td>
+                          <td className="border border-slate-200 px-3 text-center">{row.currency}</td>
+                          <td className="border border-slate-200 px-3 text-center">{Number(row.price || 0) * Number(row.quantity || 1)}</td>
+                          <td className="border border-slate-200 px-3 text-center">2026-07-08 18:30:00</td>
+                          <td className="border border-slate-200 px-3 text-center">天朗（付豪）</td>
+                          <td className="border border-slate-200 px-3 text-center">{row.description}</td>
+                          <td className="border border-slate-200 px-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setEditingStorageInstruction(row)}
+                              className="mr-3 font-semibold text-blue-600 hover:underline"
+                            >
+                              编辑
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeletingStorageInstruction(row)}
+                              className="font-semibold text-red-500 hover:underline"
+                            >
+                              删除
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={11} className="h-24 border border-slate-200 text-center text-slate-300">
+                          <FileText className="mx-auto mb-2 h-8 w-8 text-slate-200" />
+                          暂无数据
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </section>
-            </div>
+
+              {isStorageSubmissionStatus && (
+                <div className="mt-6 flex justify-center gap-4 border-t border-slate-200 pt-5">
+                  <button type="button" onClick={submitStorageOrder} className="rounded bg-blue-600 px-10 py-2 text-xs font-bold text-white hover:bg-blue-700">提交</button>
+                  <button type="button" onClick={cancelStorageSubmission} className="rounded border border-slate-300 bg-white px-10 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">取消</button>
+                </div>
+              )}            </div>
+              {showStorageInstructionModal && (
+                <div className="absolute inset-0 z-[90] bg-black/50">
+                  <div className="absolute right-0 top-0 flex h-full w-[72vw] min-w-[980px] flex-col bg-white shadow-2xl">
+                    <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 px-8">
+                      <h3 className="text-sm font-bold text-slate-950">添加指令</h3>
+                      <button
+                        type="button"
+                        onClick={() => setShowStorageInstructionModal(false)}
+                        className="rounded p-1 text-slate-600 hover:bg-slate-100"
+                        aria-label="关闭添加指令"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+
+                    <div className="min-h-0 flex-1 overflow-auto bg-[#f3f7fd] p-4">
+                      <div className="rounded-2xl bg-white p-4 shadow-sm">
+                        <div className="mb-4 grid grid-cols-[auto_220px_auto_220px_auto_auto] items-center gap-4 text-xs">
+                          <span className="font-bold text-slate-900">费用名称：</span>
+                          <input className={storageInstructionFieldClass} placeholder="请输入代码/名称" />
+                          <span className="font-bold text-slate-900">费用类型：</span>
+                          <select className={storageInstructionFieldClass} defaultValue="">
+                            <option value="">请选择费用类型</option>
+                            <option>仓储费</option>
+                            <option>操作费</option>
+                          </select>
+                          <button className="h-8 rounded bg-blue-600 px-8 text-xs font-bold text-white hover:bg-blue-700" type="button">
+                            搜索
+                          </button>
+                          <button className="h-8 rounded border border-slate-300 bg-white px-8 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button">
+                            重置
+                          </button>
+                        </div>
+
+                        <table className="w-full table-fixed border-collapse text-xs">
+                          <thead className="bg-slate-50 text-slate-900">
+                            <tr>
+                              <th className="w-12 border border-slate-200 px-2 py-2 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedStorageInstructionFeeCodes.length === storageInstructionFeeRows.length}
+                                  onChange={(event) => setSelectedStorageInstructionFeeCodes(event.target.checked ? storageInstructionFeeRows.map((row) => row.code) : [])}
+                                  className="h-3.5 w-3.5 rounded border-slate-300"
+                                />
+                              </th>
+                              {['费用代码', '费用名称', '费用类型', '计费单位', '计费单价', '币种', '描述'].map((head) => (
+                                <th key={head} className="border border-slate-200 px-3 py-2 text-center font-bold">
+                                  {head}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {Array.from({ length: 18 }).map((_, index) => {
+                              const row = storageInstructionFeeRows[index];
+                              const isSelectedFee = !!row && selectedStorageInstructionFeeCodes.includes(row.code);
+                              return (
+                                <tr key={index} className={`h-8 ${index % 2 === 1 ? 'bg-slate-50' : 'bg-white'}`}>
+                                  <td className="border border-slate-200 px-2 text-center">
+                                    <input
+                                      type="checkbox"
+                                      disabled={!row}
+                                      checked={isSelectedFee}
+                                      onChange={() => row && toggleStorageInstructionFeeCode(row.code)}
+                                      className="h-3.5 w-3.5 rounded border-slate-300"
+                                    />
+                                  </td>
+                                  <td className="border border-slate-200 px-3 text-center font-mono">{row?.code || ''}</td>
+                                  <td className="border border-slate-200 px-3 text-center">{row?.name || ''}</td>
+                                  <td className="border border-slate-200 px-3 text-center">{row?.type || ''}</td>
+                                  <td className="border border-slate-200 px-3 text-center">{row?.unit || ''}</td>
+                                  <td className="border border-slate-200 px-3 text-center">{row?.price || ''}</td>
+                                  <td className="border border-slate-200 px-3 text-center">{row?.currency || ''}</td>
+                                  <td className="border border-slate-200 px-3 text-center">{row?.description || ''}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+
+                        <div className="mt-4 flex items-center justify-between text-xs text-slate-600">
+                          <span>已选中{selectedStorageInstructionFeeCodes.length}条</span>
+                          <div className="flex items-center gap-2">
+                            <span>共 50 条</span>
+                            {[1, 2, 3, 4, 5].map((page) => (
+                              <button
+                                key={page}
+                                type="button"
+                                className={`h-7 w-7 rounded border text-xs ${page === 1 ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-200 bg-white text-slate-600'}`}
+                              >
+                                {page}
+                              </button>
+                            ))}
+                            <span>...</span>
+                            <button type="button" className="h-7 rounded border border-slate-200 bg-white px-2 text-xs">50</button>
+                            <select className="h-7 rounded border border-slate-200 bg-white px-2 text-xs" defaultValue="10">
+                              <option value="10">10/页</option>
+                              <option value="20">20/页</option>
+                            </select>
+                            <span>转到</span>
+                            <input className="h-7 w-12 rounded border border-slate-200 px-2 text-xs" defaultValue="8" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex h-14 shrink-0 items-center justify-center gap-5 border-t border-slate-200 bg-white">
+                      <button
+                        type="button"
+                        onClick={confirmStorageInstructionFees}
+                        className="rounded bg-blue-600 px-8 py-1.5 text-xs font-bold text-white hover:bg-blue-700"
+                      >
+                        确认
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowStorageInstructionModal(false)}
+                        className="rounded border border-slate-300 bg-white px-8 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+
+              {editingStorageInstruction && (
+                <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/50">
+                  <div className="w-[520px] bg-white shadow-2xl">
+                    <div className="border-b border-slate-200 px-5 py-4">
+                      <h3 className="text-sm font-bold text-slate-950">编辑费用项</h3>
+                    </div>
+                    <div className="space-y-4 px-12 py-6 text-xs">
+                      <StorageInstructionFormRow label="费用代码" requiredMark>
+                        <input className={`${storageInstructionFieldClass} bg-slate-100`} value={editingStorageInstruction.code} readOnly />
+                      </StorageInstructionFormRow>
+                      <StorageInstructionFormRow label="费用名称" requiredMark>
+                        <input className={`${storageInstructionFieldClass} bg-slate-100`} value={editingStorageInstruction.name} readOnly />
+                      </StorageInstructionFormRow>
+                      <StorageInstructionFormRow label="费用类型" requiredMark>
+                        <select
+                          className={storageInstructionFieldClass}
+                          value={editingStorageInstruction.type}
+                          onChange={(event) => setEditingStorageInstruction({ ...editingStorageInstruction, type: event.target.value })}
+                        >
+                          <option>仓储费</option>
+                          <option>操作费</option>
+                        </select>
+                      </StorageInstructionFormRow>
+                      <StorageInstructionFormRow label="计费单位" requiredMark>
+                        <select
+                          className={storageInstructionFieldClass}
+                          value={editingStorageInstruction.unit}
+                          onChange={(event) => setEditingStorageInstruction({ ...editingStorageInstruction, unit: event.target.value })}
+                        >
+                          <option>票</option>
+                          <option>箱</option>
+                          <option>KG</option>
+                        </select>
+                      </StorageInstructionFormRow>
+                      <StorageInstructionFormRow label="计费单价" requiredMark>
+                        <input
+                          className={storageInstructionFieldClass}
+                          value={editingStorageInstruction.price}
+                          onChange={(event) => setEditingStorageInstruction({ ...editingStorageInstruction, price: event.target.value })}
+                        />
+                      </StorageInstructionFormRow>
+                      <StorageInstructionFormRow label="计费数量" requiredMark>
+                        <input
+                          className={storageInstructionFieldClass}
+                          value={editingStorageInstruction.quantity || '1'}
+                          onChange={(event) => setEditingStorageInstruction({ ...editingStorageInstruction, quantity: event.target.value })}
+                        />
+                      </StorageInstructionFormRow>
+                      <StorageInstructionFormRow label="币种" requiredMark>
+                        <select
+                          className={storageInstructionFieldClass}
+                          value={editingStorageInstruction.currency}
+                          onChange={(event) => setEditingStorageInstruction({ ...editingStorageInstruction, currency: event.target.value })}
+                        >
+                          <option>人民币</option>
+                          <option>USD</option>
+                        </select>
+                      </StorageInstructionFormRow>
+                    </div>
+                    <div className="flex justify-end gap-3 px-12 pb-8">
+                      <button
+                        type="button"
+                        onClick={() => setEditingStorageInstruction(null)}
+                        className="rounded border border-slate-300 bg-white px-6 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        取消
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveEditingStorageInstruction}
+                        className="rounded bg-blue-600 px-6 py-1.5 text-xs font-bold text-white hover:bg-blue-700"
+                      >
+                        确定
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+
+              {deletingStorageInstruction && (
+                <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/50">
+                  <div className="w-[460px] bg-white shadow-2xl">
+                    <div className="border-b border-slate-200 px-5 py-4">
+                      <h3 className="text-sm font-bold text-slate-950">删除费用项</h3>
+                    </div>
+                    <div className="px-10 py-8 text-center text-sm text-slate-800">
+                      确定删除费用项“{deletingStorageInstruction.name}”吗？
+                    </div>
+                    <div className="flex justify-end gap-3 px-8 pb-7">
+                      <button
+                        type="button"
+                        onClick={() => setDeletingStorageInstruction(null)}
+                        className="rounded border border-slate-300 bg-white px-6 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        取消
+                      </button>
+                      <button
+                        type="button"
+                        onClick={confirmDeleteStorageInstruction}
+                        className="rounded bg-blue-600 px-6 py-1.5 text-xs font-bold text-white hover:bg-blue-700"
+                      >
+                        确定
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+
           </div>
         </div>
       )}
