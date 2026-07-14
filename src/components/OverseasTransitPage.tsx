@@ -57,12 +57,14 @@ interface OverseasTransitRow {
   customerRemark: string;
   overseasWarehouseRemark: string;
   salesman: string;
+  salesRepresentative?: string;
+  followupRepresentative?: string;
+  financeRepresentative?: string;
   agent: string;
   inboundAt: string;
   warehouseAt: string;
   status: TransitStatus;
   shippedCount?: number;
-  latestRoute?: string;
   routeUpdatedAt?: string;
   transferNo?: string;
   referenceId?: string;
@@ -136,6 +138,9 @@ const seedTransitRows: OverseasTransitRow[] = [
     customerRemark: '',
     overseasWarehouseRemark: '',
     salesman: '安一',
+    salesRepresentative: '安一',
+    followupRepresentative: '李跟单',
+    financeRepresentative: '王财务',
     agent: '',
     inboundAt: '2025-11-24 00:43',
     warehouseAt: '2025-11-28 10:12',
@@ -155,6 +160,9 @@ const seedTransitRows: OverseasTransitRow[] = [
     customerRemark: '',
     overseasWarehouseRemark: '',
     salesman: '安一',
+    salesRepresentative: '安一',
+    followupRepresentative: '李跟单',
+    financeRepresentative: '王财务',
     agent: '',
     inboundAt: '2025-04-17 12:49',
     warehouseAt: '2025-04-16 09:20',
@@ -174,6 +182,9 @@ const seedTransitRows: OverseasTransitRow[] = [
     customerRemark: '',
     overseasWarehouseRemark: '',
     salesman: '安一',
+    salesRepresentative: '安一',
+    followupRepresentative: '李跟单',
+    financeRepresentative: '王财务',
     agent: '',
     inboundAt: '2024-07-23 00:00',
     warehouseAt: '2024-05-10 08:41',
@@ -193,6 +204,9 @@ const seedTransitRows: OverseasTransitRow[] = [
     customerRemark: '',
     overseasWarehouseRemark: '',
     salesman: '安一',
+    salesRepresentative: '安一',
+    followupRepresentative: '李跟单',
+    financeRepresentative: '王财务',
     agent: '张运营',
     inboundAt: '2024-12-12 18:43',
     warehouseAt: '2025-12-10 09:18',
@@ -212,6 +226,9 @@ const seedTransitRows: OverseasTransitRow[] = [
     customerRemark: '',
     overseasWarehouseRemark: '',
     salesman: '安一',
+    salesRepresentative: '安一',
+    followupRepresentative: '李跟单',
+    financeRepresentative: '王财务',
     agent: '',
     inboundAt: '2025-11-14 02:29',
     warehouseAt: '2025-02-13 15:28',
@@ -231,6 +248,9 @@ const seedTransitRows: OverseasTransitRow[] = [
     customerRemark: '',
     overseasWarehouseRemark: '',
     salesman: '安一',
+    salesRepresentative: '安一',
+    followupRepresentative: '李跟单',
+    financeRepresentative: '王财务',
     agent: '',
     inboundAt: '2024-04-12 16:23',
     warehouseAt: '2025-05-16 08:16',
@@ -250,6 +270,9 @@ const seedTransitRows: OverseasTransitRow[] = [
     customerRemark: '客户已确认转出，暂存流程完成',
     overseasWarehouseRemark: '海外仓已完成库存释放',
     salesman: '安一',
+    salesRepresentative: '安一',
+    followupRepresentative: '李跟单',
+    financeRepresentative: '王财务',
     agent: '安逸',
     inboundAt: '2025-12-01 11:26',
     warehouseAt: '2025-12-09 15:42',
@@ -278,7 +301,6 @@ const makeMockTransitRow = (status: TransitStatus, index: number): OverseasTrans
     availableCount,
     service: ['美森15日达-快递派', '美森15日达-卡派包税', 'OA以星17日达-快递派', '美线海卡'][index % 4],
     shippedCount: totalCount,
-    latestRoute: inTransit ? ['已装柜出港', '抵达洛杉矶港', '等待预约派送', '卡车转运中'][index % 4] : '',
     routeUpdatedAt: inTransit ? `2026-07-${String(10 + (index % 10)).padStart(2, '0')} ${String(9 + (index % 8)).padStart(2, '0')}:30` : '',
     transferNo: inTransit ? `TRK${String(26070000 + index).padStart(8, '0')}` : '',
     referenceId: inTransit ? `REF-FBA-${String(index + 1).padStart(5, '0')}` : '',
@@ -292,6 +314,9 @@ const makeMockTransitRow = (status: TransitStatus, index: number): OverseasTrans
     customerRemark: completed ? '所有货箱已完成出库' : `mock-${status}-货箱仍按批次管理`,
     overseasWarehouseRemark: completed ? '海外仓已完成库存释放' : '海外仓库存待后续勾选出库',
     salesman: ['安一', '天朗', '张运营'][index % 3],
+    salesRepresentative: ['安一', '天朗', '张运营'][index % 3],
+    followupRepresentative: ['李跟单', '周跟单', '陈跟单'][index % 3],
+    financeRepresentative: ['王财务', '赵财务', '刘财务'][index % 3],
     agent: ['安逸', '李客服', '张运营', ''][index % 4],
     inboundAt: `2026-07-${String(8 + (index % 10)).padStart(2, '0')} ${String(8 + (index % 9)).padStart(2, '0')}:20`,
     warehouseAt: `2026-07-${String(9 + (index % 10)).padStart(2, '0')} ${String(9 + (index % 8)).padStart(2, '0')}:45`,
@@ -324,12 +349,14 @@ const getTransitRowsWithRemovedBoxes = () => transitRows.map((row) => {
     customerRemark: '',
     overseasWarehouseRemark: '',
     salesman: '',
+    salesRepresentative: '',
+    followupRepresentative: '',
+    financeRepresentative: '',
     agent: '',
     inboundAt: '',
     warehouseAt: '',
     status: row.status,
     shippedCount: undefined,
-    latestRoute: '',
     routeUpdatedAt: '',
     transferNo: '',
     referenceId: '',
@@ -400,25 +427,40 @@ type SearchField = {
   options?: string[];
 };
 
-type TransitLogRow = {
-  id: string;
-  operatedAt: string;
-  operator: string;
-  action: string;
-  field: string;
-  before: string;
-  after: string;
-  note: string;
-};
 
-const tableHeaders = ['头程运单号', 'FBA单号', '客户单号', '客户全称', '中转单类型', '总件数', '库存件数', '可用件数', '服务', '客户备注', '内部备注', '代理', '入仓时间', '仓租时间', '操作'];
-const inTransitStorageHeaders = ['头程运单号', 'FBA单号', '客户单号', '客户全称', '发货件数', '最新路由', '路由更新时间', '转单号', 'ReferenceId', '仓库代码', '业务员', '收费重', '实重', '材积重', '方数', '柜号', '邮编', '服务', '客户备注', '内部备注'];
+const tableHeaders = ['头程运单号', 'FBA单号', '客户单号', '客户简称', '中转单类型', '总件数', '库存件数', '可用件数', '服务', '客户备注', '内部备注', '代理', '入仓时间', '仓租时间', '操作'];
+const storageExtendedHeaders = [
+  '头程运单号',
+  'FBA单号',
+  '客户单号',
+  '客户简称',
+  '总件数',
+  '库存件数',
+  '可用件数',
+  '服务',
+  '客户备注',
+  '内部备注',
+  '入仓时间',
+  '仓租时间',
+  '库龄',
+  '转单号',
+  '仓库代码',
+  '销售代表',
+  '跟单代表',
+  '财务代表',
+  '收费重',
+  '实重',
+  '材积重',
+  '方数',
+  '柜号',
+  '邮编',
+];
 
 const overseasSearchFields: SearchField[] = [
   { label: '头程运单号', type: 'input', placeholder: '支持批量' },
   { label: 'FBA单号', type: 'input', placeholder: '支持批量' },
   { label: '客户单号', type: 'input', placeholder: '支持批量' },
-  { label: '客户全称', type: 'select', options: ['阿里巴巴', '腾讯科技', '华为技术', '深圳天图电子有限公司'] },
+  { label: '客户简称', type: 'select', options: ['阿里巴巴', '腾讯科技', '华为技术', '深圳天图电子有限公司'] },
   { label: '中转单类型', type: 'select', options: ['暂存', '拦截'] },
   { label: '总件数', type: 'input', placeholder: '请输入' },
   { label: '库存件数', type: 'input', placeholder: '请输入' },
@@ -431,7 +473,24 @@ const overseasSearchFields: SearchField[] = [
   { label: '内部备注', type: 'input', placeholder: '请输入' },
 ];
 
-const storageSearchFields: SearchField[] = overseasSearchFields;
+const storageSearchFields: SearchField[] = [
+  { label: '头程运单号', type: 'input', placeholder: '支持批量' },
+  { label: 'FBA单号', type: 'input', placeholder: '支持批量' },
+  { label: '客户单号', type: 'input', placeholder: '支持批量' },
+  { label: '客户简称', type: 'select', options: ['阿里巴巴', '腾讯科技', '华为技术', '深圳天图电子有限公司'] },
+  { label: '总件数', type: 'input', placeholder: '请输入' },
+  { label: '库存件数', type: 'input', placeholder: '请输入' },
+  { label: '可用件数', type: 'input', placeholder: '请输入' },
+  { label: '服务', type: 'select', options: ['美森15日达-快递派', '美森15日达-卡派包税', '美线海卡'] },
+  { label: '入仓时间', type: 'select', options: ['近 7 天', '近 30 天'] },
+  { label: '仓租时间', type: 'select', options: ['近 7 天', '近 30 天'] },
+  { label: '库龄', type: 'select', options: ['0-30 天', '31-60 天', '61-90 天', '90 天以上'] },
+  { label: '销售代表', type: 'input', placeholder: '请输入' },
+  { label: '跟单代表', type: 'input', placeholder: '请输入' },
+  { label: '财务代表', type: 'input', placeholder: '请输入' },
+  { label: '客户备注', type: 'input', placeholder: '请输入' },
+  { label: '内部备注', type: 'input', placeholder: '请输入' },
+];
 
 const getCompletedStorageAddressForm = (row: OverseasTransitRow): AddressFormState => {
   const warehouseCode = overseasWarehouseCodes[0];
@@ -453,49 +512,15 @@ const formatLocalDateTime = () => {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:00`;
 };
 
+const getStorageAgeText = (inboundAt?: string) => {
+  if (!inboundAt) return '-';
+  const inboundTime = new Date(inboundAt.replace(' ', 'T')).getTime();
+  if (Number.isNaN(inboundTime)) return '-';
+  const days = Math.floor((Date.now() - inboundTime) / (24 * 60 * 60 * 1000));
+  return `${Math.max(0, days)} 天`;
+};
 
-const getTransitLogRows = (row: OverseasTransitRow): TransitLogRow[] => [
-  {
-    id: `${row.headWaybillNo}-create`,
-    operatedAt: row.inboundAt,
-    operator: row.agent || '系统',
-    action: '创建暂存记录',
-    field: '基础信息',
-    before: '-',
-    after: `${row.customer} / ${row.service}`,
-    note: `头程运单 ${row.headWaybillNo} 入仓后生成${row.transferType}记录`,
-  },
-  {
-    id: `${row.headWaybillNo}-inventory`,
-    operatedAt: row.warehouseAt,
-    operator: '海外仓',
-    action: '库存更新',
-    field: '库存件数 / 可用件数',
-    before: '-',
-    after: `${row.inventoryCount} / ${row.availableCount}`,
-    note: '海外仓回传库存盘点结果',
-  },
-  {
-    id: `${row.headWaybillNo}-remark`,
-    operatedAt: row.warehouseAt,
-    operator: row.agent || '安逸',
-    action: '备注维护',
-    field: '客户备注 / 内部备注',
-    before: '-',
-    after: `${row.customerRemark || '-'} / ${row.overseasWarehouseRemark || '-'}`,
-    note: '同步客户说明与海外仓操作备注',
-  },
-  {
-    id: `${row.headWaybillNo}-status`,
-    operatedAt: row.warehouseAt,
-    operator: '系统',
-    action: '状态变更',
-    field: '中转状态',
-    before: '运输中',
-    after: row.status,
-    note: '根据仓库节点自动更新状态',
-  },
-];
+
 
 function TransitLogDrawer({
   row,
@@ -504,14 +529,17 @@ function TransitLogDrawer({
   row: OverseasTransitRow;
   onClose: () => void;
 }) {
-  const logs = getTransitLogRows(row);
+  const orderLogs = getCreatedTransitChildOrders()
+    .filter((item) => item.parentHeadWaybillNo === row.headWaybillNo)
+    .sort((a, b) => b.childCreatedAt.localeCompare(a.childCreatedAt));
+
   return (
     <div className="fixed inset-0 z-[60] bg-black/45">
-      <div className="absolute right-0 top-0 flex h-full w-[760px] max-w-[92vw] flex-col bg-white shadow-2xl">
+      <div className="absolute right-0 top-0 flex h-full w-[860px] max-w-[94vw] flex-col bg-white shadow-2xl">
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-slate-200 px-6">
           <div>
-            <h2 className="text-sm font-bold text-slate-950">操作日志</h2>
-            <p className="mt-0.5 text-[11px] text-slate-500">{row.headWaybillNo} · {row.customer}</p>
+            <h2 className="text-sm font-bold text-slate-950">下单日志</h2>
+            <p className="mt-0.5 text-[11px] text-slate-500">母单：{row.headWaybillNo} · {row.customer}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded p-1 text-slate-600 hover:bg-slate-100" aria-label="关闭日志">
             <X className="h-5 w-5" />
@@ -519,30 +547,35 @@ function TransitLogDrawer({
         </div>
         <div className="min-h-0 flex-1 overflow-auto bg-slate-50 p-4">
           <div className="mb-3 grid grid-cols-3 gap-3 rounded border border-slate-200 bg-white px-4 py-3 text-xs">
-            <div><span className="font-bold text-slate-900">状态：</span>{row.status}</div>
-            <div><span className="font-bold text-slate-900">服务：</span>{row.service}</div>
-            <div><span className="font-bold text-slate-900">件数：</span>{row.totalCount}</div>
+            <div><span className="font-bold text-slate-900">母单状态：</span>{row.status}</div>
+            <div><span className="font-bold text-slate-900">已下单次数：</span>{orderLogs.length}</div>
+            <div><span className="font-bold text-slate-900">已下单箱数：</span>{orderLogs.reduce((sum, item) => sum + item.boxNumbers.length, 0)}</div>
           </div>
           <table className="w-full table-fixed border-collapse bg-white text-xs">
             <thead className="bg-slate-100 text-slate-800">
               <tr>
-                {['变更时间', '操作人', '操作类型', '变更字段', '变更前', '变更后', '说明'].map((head) => (
+                {['下单时间', '下单人', '下单箱数', '下单箱号', '子单号', '状态'].map((head) => (
                   <th key={head} className="border border-slate-200 px-3 py-2 text-center font-bold">{head}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {logs.map((log) => (
+              {orderLogs.length > 0 ? orderLogs.map((log) => (
                 <tr key={log.id} className="align-top text-slate-700">
-                  <td className="border border-slate-200 px-3 py-2 text-center font-mono">{log.operatedAt}</td>
-                  <td className="border border-slate-200 px-3 py-2 text-center">{log.operator}</td>
-                  <td className="border border-slate-200 px-3 py-2 text-center">{log.action}</td>
-                  <td className="border border-slate-200 px-3 py-2 text-center">{log.field}</td>
-                  <td className="border border-slate-200 px-3 py-2">{log.before}</td>
-                  <td className="border border-slate-200 px-3 py-2">{log.after}</td>
-                  <td className="border border-slate-200 px-3 py-2">{log.note}</td>
+                  <td className="border border-slate-200 px-3 py-2 text-center font-mono">{log.childCreatedAt}</td>
+                  <td className="border border-slate-200 px-3 py-2 text-center">{log.merchandiser || log.salesman || '-'}</td>
+                  <td className="border border-slate-200 px-3 py-2 text-center">{log.boxNumbers.length}</td>
+                  <td className="border border-slate-200 px-3 py-2 font-mono leading-5">{log.boxNumbers.join('、')}</td>
+                  <td className="border border-slate-200 px-3 py-2 text-center font-mono">{log.id}</td>
+                  <td className="border border-slate-200 px-3 py-2 text-center">{log.status}</td>
                 </tr>
-              ))}
+              )) : (
+                <tr>
+                  <td colSpan={6} className="h-24 border border-slate-200 text-center text-slate-400">
+                    暂无下单记录
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -686,7 +719,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
   const [deletingStorageInstruction, setDeletingStorageInstruction] = useState<StorageInstructionRow | null>(null);
   useEffect(() => subscribeOverseasTransitFlow(() => setPageTransitRows(getTransitRowsWithRemovedBoxes())), []);
   const searchFields = mode === 'storage' ? storageSearchFields : overseasSearchFields;
-  const searchToastText = mode === 'storage' ? '已查询海外仓暂存管理数据' : '已查询海外中转单数据';
+  const searchToastText = mode === 'storage' ? '已查询海外仓暂存数据' : '已查询海外中转单数据';
   const isCompletedStorageOrder = activeStorageOrder?.status === '暂存已完成';
   const activeStorageOrderKey = activeStorageOrder?.headWaybillNo || '';
   const activeStorageSelectedBoxIndexes = activeStorageOrderKey ? (selectedStorageBoxIndexesByOrder[activeStorageOrderKey] || []) : [];
@@ -700,8 +733,8 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
       : pageTransitRows;
     return activeTab === '全部' ? rows : rows.filter((row) => row.status === activeTab);
   }, [activeTab, mode, pageTransitRows]);
-  const isStorageInTransitTab = mode === 'storage' && activeTab === '运输中';
-  const visibleTableHeaders = isStorageInTransitTab ? inTransitStorageHeaders : tableHeaders;
+  const isStorageListMode = mode === 'storage';
+  const visibleTableHeaders = isStorageListMode ? storageExtendedHeaders : tableHeaders;
 
   const getTabCount = (tab: TransitStatus) => {
     const scopedRows = mode === 'storage'
@@ -785,7 +818,6 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
       childCreatedAt: now,
       orderSeq,
       transferNo: '',
-      latestRoute: '待海外仓确认出库窗口',
       customerRemark: storageAddressForm.remark,
       overseasWarehouseRemark: storageAddressForm.overseasWarehouseRemark,
       warehouseCode: storageAddressForm.warehouseCode,
@@ -1072,24 +1104,40 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
 
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => openDetail()} className="flex w-[90px] items-center justify-center rounded bg-[#0068d9] px-3 py-2 text-xs font-bold text-white hover:bg-[#005ac0]">
-              下单
-            </button>
-            <button type="button" onClick={() => addToast('正在导出海外中转单', 'info')} className="flex w-[90px] items-center justify-center rounded bg-[#0068d9] px-3 py-2 text-xs font-bold text-white hover:bg-[#005ac0]">
-              导出
-            </button>
-            <button type="button" onClick={() => addToast('批量修改面板已打开', 'info')} className="flex w-[90px] items-center justify-center rounded bg-[#0068d9] px-3 py-2 text-xs font-bold text-white hover:bg-[#005ac0]">
-              批量修改
-            </button>
-            <button type="button" onClick={() => addToast('请选择需要移除的运单', 'warning')} className="flex w-[90px] items-center justify-center rounded bg-[#0068d9] px-3 py-2 text-xs font-bold text-white hover:bg-[#005ac0]">
-              移除运单
-            </button>
+            {isStorageListMode ? (
+              <>
+                <button type="button" onClick={() => openDetail()} className="flex w-[90px] items-center justify-center rounded bg-[#0068d9] px-3 py-2 text-xs font-bold text-white hover:bg-[#005ac0]">
+                  下单
+                </button>
+                <button type="button" onClick={() => addToast('正在导出海外仓暂存数据', 'info')} className="flex w-[90px] items-center justify-center rounded bg-[#0068d9] px-3 py-2 text-xs font-bold text-white hover:bg-[#005ac0]">
+                  导出
+                </button>
+                <button type="button" onClick={() => openLog()} className="flex w-[90px] items-center justify-center rounded bg-[#0068d9] px-3 py-2 text-xs font-bold text-white hover:bg-[#005ac0]">
+                  日志
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" onClick={() => openDetail()} className="flex w-[90px] items-center justify-center rounded bg-[#0068d9] px-3 py-2 text-xs font-bold text-white hover:bg-[#005ac0]">
+                  下单
+                </button>
+                <button type="button" onClick={() => addToast('正在导出海外中转单', 'info')} className="flex w-[90px] items-center justify-center rounded bg-[#0068d9] px-3 py-2 text-xs font-bold text-white hover:bg-[#005ac0]">
+                  导出
+                </button>
+                <button type="button" onClick={() => addToast('批量修改面板已打开', 'info')} className="flex w-[90px] items-center justify-center rounded bg-[#0068d9] px-3 py-2 text-xs font-bold text-white hover:bg-[#005ac0]">
+                  批量修改
+                </button>
+                <button type="button" onClick={() => addToast('请选择需要移除的运单', 'warning')} className="flex w-[90px] items-center justify-center rounded bg-[#0068d9] px-3 py-2 text-xs font-bold text-white hover:bg-[#005ac0]">
+                  移除运单
+                </button>
+              </>
+            )}
           </div>
           <div />
         </div>
 
         <div className="overflow-x-auto border border-slate-200">
-          <table className={`w-full ${isStorageInTransitTab ? 'min-w-[2400px]' : 'min-w-[1800px]'} table-fixed border-collapse text-[11px]`}>
+          <table className={`w-full ${isStorageListMode ? 'min-w-[3000px]' : 'min-w-[1800px]'} table-fixed border-collapse text-[11px]`}>
             <thead className="bg-[#f2f2f2] text-slate-800">
               <tr>
                 <th className="w-10 border border-slate-200 px-2 py-2 text-center"><input type="checkbox" readOnly className="h-3.5 w-3.5 rounded border-slate-300" /></th>
@@ -1109,28 +1157,32 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                   className="h-8 cursor-pointer text-slate-700 hover:bg-blue-50/30"
                 >
                   <td className="border border-slate-300 px-2 text-center"><input type="checkbox" readOnly className="h-3.5 w-3.5 rounded border-slate-300" /></td>
-                  {isStorageInTransitTab ? (
+                  {isStorageListMode ? (
                     <>
                       <td className="border border-slate-300 px-3 text-center font-mono">{row.headWaybillNo}</td>
                       <td className="border border-slate-300 px-3 text-center font-mono">{row.fbaNo}</td>
                       <td className="border border-slate-300 px-3 text-center">{row.customerOrderNo}</td>
                       <td className="border border-slate-300 px-3 text-center">{row.customer}</td>
-                      <td className="border border-slate-300 px-3 text-center">{row.shippedCount ?? row.totalCount}</td>
-                      <td className="border border-slate-300 px-3 text-center">{row.latestRoute || '-'}</td>
-                      <td className="border border-slate-300 px-3 text-center font-mono">{row.routeUpdatedAt || '-'}</td>
+                      <td className="border border-slate-300 px-3 text-center">{row.totalCount}</td>
+                      <td className="border border-slate-300 px-3 text-center">{row.inventoryCount}</td>
+                      <td className="border border-slate-300 px-3 text-center">{row.availableCount}</td>
+                      <td className="border border-slate-300 px-3 text-center">{row.service}</td>
+                      <td className="border border-slate-300 px-3 text-center">{row.customerRemark}</td>
+                      <td className="border border-slate-300 px-3 text-center">{row.overseasWarehouseRemark}</td>
+                      <td className="border border-slate-300 px-3 text-center font-mono">{row.inboundAt}</td>
+                      <td className="border border-slate-300 px-3 text-center font-mono">{row.warehouseAt}</td>
+                      <td className="border border-slate-300 px-3 text-center">{getStorageAgeText(row.inboundAt)}</td>
                       <td className="border border-slate-300 px-3 text-center font-mono">{row.transferNo || '-'}</td>
-                      <td className="border border-slate-300 px-3 text-center">{row.referenceId || '-'}</td>
                       <td className="border border-slate-300 px-3 text-center">{row.warehouseCode || '-'}</td>
-                      <td className="border border-slate-300 px-3 text-center">{row.salesman || '-'}</td>
+                      <td className="border border-slate-300 px-3 text-center">{row.salesRepresentative || row.salesman || '-'}</td>
+                      <td className="border border-slate-300 px-3 text-center">{row.followupRepresentative || '-'}</td>
+                      <td className="border border-slate-300 px-3 text-center">{row.financeRepresentative || '-'}</td>
                       <td className="border border-slate-300 px-3 text-center">{row.chargeWeight || '-'}</td>
                       <td className="border border-slate-300 px-3 text-center">{row.actualWeight || '-'}</td>
                       <td className="border border-slate-300 px-3 text-center">{row.volumetricWeight || '-'}</td>
                       <td className="border border-slate-300 px-3 text-center">{row.volumeCbm || '-'}</td>
                       <td className="border border-slate-300 px-3 text-center font-mono">{row.containerNo || '-'}</td>
                       <td className="border border-slate-300 px-3 text-center font-mono">{row.zipCode || '-'}</td>
-                      <td className="border border-slate-300 px-3 text-center">{row.service}</td>
-                      <td className="border border-slate-300 px-3 text-center">{row.customerRemark}</td>
-                      <td className="border border-slate-300 px-3 text-center">{row.overseasWarehouseRemark}</td>
                     </>
                   ) : (
                     <>
@@ -1200,16 +1252,18 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                     <DrawerReadonlyField label="头程运单号">{activeStorageOrder.headWaybillNo}</DrawerReadonlyField>
                     <DrawerReadonlyField label="FBA单号">{activeStorageOrder.fbaNo || '-'}</DrawerReadonlyField>
                     <DrawerReadonlyField label="客户单号">{activeStorageOrder.customerOrderNo || '-'}</DrawerReadonlyField>
-                    <DrawerReadonlyField label="客户全称">{activeStorageOrder.customer}</DrawerReadonlyField>
-                    <DrawerReadonlyField label="中转单类型">{activeStorageOrder.transferType}</DrawerReadonlyField>
+                    <DrawerReadonlyField label="客户简称">{activeStorageOrder.customer}</DrawerReadonlyField>
                     <DrawerReadonlyField label="状态">{activeStorageOrder.status}</DrawerReadonlyField>
                     <DrawerReadonlyField label="总件数">{activeStorageOrder.totalCount}</DrawerReadonlyField>
                     <DrawerReadonlyField label="库存件数">{activeStorageOrder.inventoryCount}</DrawerReadonlyField>
                     <DrawerReadonlyField label="可用件数">{activeStorageOrder.availableCount}</DrawerReadonlyField>
-                    <DrawerReadonlyField label="代理">{activeStorageOrder.agent || '-'}</DrawerReadonlyField>
                     <DrawerReadonlyField label="服务" className="col-span-2">{activeStorageOrder.service}</DrawerReadonlyField>
                     <DrawerReadonlyField label="入仓时间">{activeStorageOrder.inboundAt}</DrawerReadonlyField>
                     <DrawerReadonlyField label="仓租时间">{activeStorageOrder.warehouseAt}</DrawerReadonlyField>
+                    <DrawerReadonlyField label="库龄">{getStorageAgeText(activeStorageOrder.inboundAt)}</DrawerReadonlyField>
+                    <DrawerReadonlyField label="销售代表">{activeStorageOrder.salesRepresentative || activeStorageOrder.salesman || '-'}</DrawerReadonlyField>
+                    <DrawerReadonlyField label="跟单代表">{activeStorageOrder.followupRepresentative || '-'}</DrawerReadonlyField>
+                    <DrawerReadonlyField label="财务代表">{activeStorageOrder.financeRepresentative || '-'}</DrawerReadonlyField>
                     <DrawerReadonlyField label="客户备注" className="col-span-2">{activeStorageOrder.customerRemark || '-'}</DrawerReadonlyField>
                     <DrawerReadonlyField label="内部备注" className="col-span-2">{activeStorageOrder.overseasWarehouseRemark || '-'}</DrawerReadonlyField>
                   </div>
@@ -1245,7 +1299,6 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                     <>
                       <DrawerReadonlyField label="运单类型" required>{storageAddressForm.orderType}</DrawerReadonlyField>
                       <DrawerReadonlyField label="仓库代码" required>{storageAddressForm.warehouseCode}</DrawerReadonlyField>
-                    <DrawerReadonlyField label="业务员">{activeStorageOrder.salesman || '-'}</DrawerReadonlyField>
                       <DrawerReadonlyField label="邮编" required>{storageAddressForm.zipCode}</DrawerReadonlyField>
                       <DrawerReadonlyField label="收件人">{storageAddressForm.consignee}</DrawerReadonlyField>
                       {storageAddressForm.orderType === '私人地址' && (

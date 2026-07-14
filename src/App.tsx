@@ -543,7 +543,7 @@ export default function App() {
           <RuleConfigPage addToast={addToast} />
         ) : currentTab === '海外中转单' ? (
           <OverseasTransitOrderPage addToast={addToast} />
-        ) : currentTab === '海外仓暂存管理' ? (
+        ) : currentTab === '海外仓暂存' ? (
           <OverseasTransitPage addToast={addToast} initialView="list" mode="storage" />
         ) : currentTab === '快递单' ? (
           <ExpressOrderPage addToast={addToast} />
