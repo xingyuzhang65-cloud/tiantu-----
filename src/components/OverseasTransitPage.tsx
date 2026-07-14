@@ -478,18 +478,12 @@ const storageSearchFields: SearchField[] = [
   { label: 'FBA单号', type: 'input', placeholder: '支持批量' },
   { label: '客户单号', type: 'input', placeholder: '支持批量' },
   { label: '客户简称', type: 'select', options: ['阿里巴巴', '腾讯科技', '华为技术', '深圳天图电子有限公司'] },
-  { label: '总件数', type: 'input', placeholder: '请输入' },
-  { label: '库存件数', type: 'input', placeholder: '请输入' },
-  { label: '可用件数', type: 'input', placeholder: '请输入' },
   { label: '服务', type: 'select', options: ['美森15日达-快递派', '美森15日达-卡派包税', '美线海卡'] },
   { label: '入仓时间', type: 'select', options: ['近 7 天', '近 30 天'] },
   { label: '仓租时间', type: 'select', options: ['近 7 天', '近 30 天'] },
-  { label: '库龄', type: 'select', options: ['0-30 天', '31-60 天', '61-90 天', '90 天以上'] },
   { label: '销售代表', type: 'input', placeholder: '请输入' },
   { label: '跟单代表', type: 'input', placeholder: '请输入' },
   { label: '财务代表', type: 'input', placeholder: '请输入' },
-  { label: '客户备注', type: 'input', placeholder: '请输入' },
-  { label: '内部备注', type: 'input', placeholder: '请输入' },
 ];
 
 const getCompletedStorageAddressForm = (row: OverseasTransitRow): AddressFormState => {
