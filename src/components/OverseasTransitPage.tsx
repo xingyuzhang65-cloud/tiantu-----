@@ -73,7 +73,6 @@ interface OverseasTransitRow {
   actualWeight?: string;
   volumetricWeight?: string;
   volumeCbm?: string;
-  containerNo?: string;
   zipCode?: string;
 }
 
@@ -309,7 +308,6 @@ const makeMockTransitRow = (status: TransitStatus, index: number): OverseasTrans
     actualWeight: String(totalCount * 5.6),
     volumetricWeight: String(totalCount * 6.2),
     volumeCbm: (totalCount * 0.078).toFixed(2),
-    containerNo: inTransit ? `TGHU${String(7300000 + index)}` : '',
     zipCode: ['92376', '90001', '85043', '92408'][index % 4],
     customerRemark: completed ? '所有货箱已完成出库' : `mock-${status}-货箱仍按批次管理`,
     overseasWarehouseRemark: completed ? '海外仓已完成库存释放' : '海外仓库存待后续勾选出库',
@@ -365,7 +363,6 @@ const getTransitRowsWithRemovedBoxes = () => transitRows.map((row) => {
     actualWeight: '',
     volumetricWeight: '',
     volumeCbm: '',
-    containerNo: '',
     zipCode: '',
   };
 });
@@ -452,7 +449,6 @@ const storageExtendedHeaders = [
   '实重',
   '材积重',
   '方数',
-  '柜号',
   '邮编',
 ];
 
@@ -1175,7 +1171,6 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                       <td className="border border-slate-300 px-3 text-center">{row.actualWeight || '-'}</td>
                       <td className="border border-slate-300 px-3 text-center">{row.volumetricWeight || '-'}</td>
                       <td className="border border-slate-300 px-3 text-center">{row.volumeCbm || '-'}</td>
-                      <td className="border border-slate-300 px-3 text-center font-mono">{row.containerNo || '-'}</td>
                       <td className="border border-slate-300 px-3 text-center font-mono">{row.zipCode || '-'}</td>
                     </>
                   ) : (
