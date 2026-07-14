@@ -54,7 +54,8 @@ interface TransitTransferRow {
 }
 
 const overseasTransitNodes = ['待确认', '已确认', '已下单', '转运中', '签收', '取消'];
-const orderFormStatuses = new Set(['待确认', '已确认']);
+// 已确认详情与已下单共用运单详情二级页签；仅待确认保留可编辑的下单表单。
+const orderFormStatuses = new Set(['待确认']);
 
 const seedTransitRows: OverseasTransitRow[] = [
   {
@@ -534,7 +535,7 @@ const instructionFeeRows = [
   { code: 'FY202509260007', name: '扣货-无免仓期', type: '仓储费', unit: '票', price: '2', currency: '人民币', description: '按1级单价收取' },
 ];
 
-const downstreamDetailTabs = ['费用信息', '货箱信息', '其它信息'] as const;
+const downstreamDetailTabs = ['费用信息', '货箱信息', '运踪信息', '其它信息'] as const;
 
 const quoteFeeRows = [
   { code: 'BJ202606050001', name: '哈哈', type: '操作费', price: '1.89', currency: '美元', exchangeRate: '7.014', unit: '哈哈', quantity: '1票', amount: '13.26', addedAt: '2026-06-05 14:28:00', addedBy: '天未', description: '海外仓操作附加费用' },
@@ -550,6 +551,29 @@ type InstructionFeeRow = (typeof instructionFeeRows)[number] & {
 type QuoteFeeRow = (typeof quoteFeeRows)[number];
 type AttachmentRow = (typeof attachmentRows)[number];
 
+type TrackingEvent = {
+  id: string;
+  occurredAt: string;
+  source: '系统' | '客户';
+  status: string;
+  location: string;
+  description: string;
+};
+
+type TrackingFormState = {
+  occurredAt: string;
+  status: string;
+  location: string;
+  description: string;
+};
+
+const trackingStatusOptions = ['已确认', '已下单', '已揽货', '运输中', '清关中', '派送中', '已签收', '异常', '已取消'];
+const emptyTrackingForm: TrackingFormState = {
+  occurredAt: '',
+  status: '运输中',
+  location: '',
+  description: '',
+};
 type DownstreamDetailTab = (typeof downstreamDetailTabs)[number];
 type FeeModalTarget = 'instruction' | 'quote';
 type AttachmentFormState = {
@@ -756,6 +780,27 @@ const getOrderLogRows = (row: OverseasTransitRow): OrderLogRow[] => [
   },
 ];
 
+const getDefaultTrackingRows = (row: OverseasTransitRow): TrackingEvent[] => {
+  const currentStatus = row.status === '取消' ? '已取消' : row.status;
+  return [
+    {
+      id: `${row.id}-tracking-created`,
+      occurredAt: row.childCreatedAt || row.inboundTime,
+      source: '系统',
+      status: '已创建',
+      location: '中国',
+      description: '海外中转运单已创建',
+    },
+    {
+      id: `${row.id}-tracking-status`,
+      occurredAt: row.inboundTime,
+      source: '系统',
+      status: currentStatus,
+      location: row.destination,
+      description: `订单当前状态：${currentStatus}`,
+    },
+  ];
+};
 function OrderLogDrawer({
   row,
   extraLogs = [],
@@ -830,6 +875,9 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
   const [quoteRowsByOrder, setQuoteRowsByOrder] = useState<Record<string, QuoteFeeRow[]>>({});
   const [quoteLogsByOrder, setQuoteLogsByOrder] = useState<Record<string, OrderLogRow[]>>({});
   const [attachmentRowsByOrder, setAttachmentRowsByOrder] = useState<Record<string, AttachmentRow[]>>({});
+  const [trackingRowsByOrder, setTrackingRowsByOrder] = useState<Record<string, TrackingEvent[]>>({});
+  const [showTrackingModal, setShowTrackingModal] = useState(false);
+  const [trackingForm, setTrackingForm] = useState<TrackingFormState>(emptyTrackingForm);
   const [transferPanelOpen, setTransferPanelOpen] = useState(false);
   const [transferDraftsByOrder, setTransferDraftsByOrder] = useState<Record<string, TransitTransferRow[]>>({});
   const [savedTransferRowsByOrder, setSavedTransferRowsByOrder] = useState<Record<string, TransitTransferRow[]>>({});
@@ -855,7 +903,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
   const usesOrderFormTemplate = (status: string) => orderFormStatuses.has(status);
   const showOverseasWaybillNo = true;
   const orderSearchFields = showOverseasWaybillNo ? fullOrderSearchFields : baseOrderSearchFields;
-  const quoteEditableStatuses = new Set(['已下单', '转运中', '签收']);
+  const quoteEditableStatuses = new Set(['已确认', '已下单', '转运中', '签收']);
   const activeOrderKey = activeOrder ? getOrderKey(activeOrder) : '';
   const addressForm = activeOrder ? (addressFormsByOrder[activeOrderKey] || getParentStorageAddressForm(activeOrder)) : emptyAddressForm;
   const isOrderFormEditing = !!activeOrder && usesOrderFormTemplate(activeOrder.status) && editingOrderFormKey === activeOrderKey;
@@ -863,6 +911,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
   const activeQuoteRows = activeOrder ? (quoteRowsByOrder[activeOrderKey] || quoteFeeRows) : [];
   const canEditQuoteFees = !!activeOrder && quoteEditableStatuses.has(activeOrder.status);
   const activeAttachmentRows = activeOrder ? (attachmentRowsByOrder[activeOrderKey] || attachmentRows) : [];
+  const activeTrackingRows = activeOrder ? (trackingRowsByOrder[activeOrderKey] || getDefaultTrackingRows(activeOrder)) : [];
 
   useEffect(() => subscribeOverseasTransitFlow(() => setCreatedTransitRows(getCreatedTransitChildOrders())), []);
   useEffect(() => {
@@ -1177,7 +1226,28 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
       addToast(`已添加 ${nextRows.length} 条报价费用明细`, 'success');
       return;
     }
-    if (activeOrder) setInstructionRowsByOrder((prev) => ({ ...prev, [getOrderKey(activeOrder)]: selectedFees }));
+    if (activeOrder) {
+      const orderKey = getOrderKey(activeOrder);
+      setInstructionRowsByOrder((prev) => ({ ...prev, [orderKey]: selectedFees }));
+
+      if (activeOrder.status === '已确认') {
+        const existingRows = quoteRowsByOrder[orderKey] || quoteFeeRows;
+        const nextRows = selectedFees.map((row, index) => createQuoteFeeRow(row, existingRows.length + index + 1));
+        setQuoteRowsByOrder((prev) => ({
+          ...prev,
+          [orderKey]: [...existingRows, ...nextRows],
+        }));
+        appendQuoteLog(orderKey, {
+          operatedAt: formatDateTime(),
+          operator: '客户',
+          action: '新增操作指令',
+          field: '费用信息',
+          before: '-',
+          after: nextRows.map(describeQuoteFee).join('；'),
+          note: '已确认状态新增操作指令并同步费用明细',
+        });
+      }
+    }
     setShowInstructionModal(false);
     addToast(`已添加 ${selectedFees.length} 条操作指令`, 'success');
   };
@@ -1396,6 +1466,53 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
       }));
   };
 
+  const openTrackingModal = () => {
+    if (!activeOrder) return;
+    setTrackingForm({
+      ...emptyTrackingForm,
+      occurredAt: formatDateTime(),
+      status: activeOrder.status === '取消' ? '已取消' : activeOrder.status,
+      location: activeOrder.destination,
+    });
+    setShowTrackingModal(true);
+  };
+
+  const closeTrackingModal = () => {
+    setShowTrackingModal(false);
+    setTrackingForm(emptyTrackingForm);
+  };
+
+  const saveTrackingEvent = () => {
+    if (!activeOrder || !activeOrderKey) return;
+    if (!trackingForm.occurredAt.trim() || !trackingForm.status.trim() || !trackingForm.description.trim()) {
+      addToast('请填写完整的运踪时间、运踪节点和运踪描述', 'warning');
+      return;
+    }
+
+    const nextEvent: TrackingEvent = {
+      id: `${activeOrderKey}-tracking-${Date.now()}`,
+      occurredAt: trackingForm.occurredAt.trim(),
+      source: '客户',
+      status: trackingForm.status.trim(),
+      location: trackingForm.location.trim() || activeOrder.destination,
+      description: trackingForm.description.trim(),
+    };
+    setTrackingRowsByOrder((prev) => ({
+      ...prev,
+      [activeOrderKey]: [...(prev[activeOrderKey] || getDefaultTrackingRows(activeOrder)), nextEvent],
+    }));
+    appendQuoteLog(activeOrderKey, {
+      operatedAt: formatDateTime(),
+      operator: '客户',
+      action: '客户手动更新运踪',
+      field: '运踪信息',
+      before: '-',
+      after: `${nextEvent.status} / ${nextEvent.location}`,
+      note: nextEvent.description,
+    });
+    addToast(`运单 ${activeOrderKey} 的运踪信息已更新`, 'success');
+    closeTrackingModal();
+  };
   const openTransferPanel = (row: OverseasTransitRow) => {
     setTransferDraftsByOrder((prev) => {
       const orderKey = getOrderKey(row);
@@ -2004,7 +2121,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                           {canEditQuoteFees && (
                             <button
                               type="button"
-                              onClick={() => openFeeSelector('quote')}
+                              onClick={() => openFeeSelector(activeOrder.status === '已确认' ? 'instruction' : 'quote')}
                               className="rounded border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                             >
                               新增
@@ -2139,6 +2256,60 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                       </section>
                     )}
 
+                    {downstreamDetailTab === '运踪信息' && (
+                      <section className="rounded-md bg-white p-4 shadow-sm">
+                        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <h3 className="text-sm font-bold text-slate-950">运踪节点信息</h3>
+                            <p className="mt-1 text-[11px] text-slate-500">支持客户手动补充和更新运踪节点，更新后同步记录操作日志。</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={openTrackingModal}
+                            className="rounded bg-[#004bb1] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#003b91]"
+                          >
+                            新增运踪
+                          </button>
+                        </div>
+
+                        <div className="mb-4 flex items-center justify-between rounded bg-blue-50 px-4 py-2 text-xs">
+                          <span className="rounded bg-blue-600 px-3 py-1 font-bold text-white">
+                            预计送达时间：{activeOrder.childCreatedAt || activeOrder.inboundTime}
+                          </span>
+                          <span className="text-slate-500">共 {activeTrackingRows.length} 条运踪</span>
+                        </div>
+
+                        <div className="rounded border border-slate-200 bg-white px-6 py-4">
+                          {activeTrackingRows.length > 0 ? (
+                            <div className="relative ml-5 border-l border-slate-200">
+                              {activeTrackingRows.map((event, index) => {
+                                const isLatest = index === activeTrackingRows.length - 1;
+                                return (
+                                  <div key={event.id} className="relative pb-7 pl-8 last:pb-1">
+                                    <span
+                                      className={`absolute -left-[7px] top-1 h-3 w-3 rounded-full border-2 border-white ${
+                                        isLatest ? 'bg-red-500' : 'bg-blue-600'
+                                      }`}
+                                    />
+                                    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
+                                      <span className="font-bold text-slate-900">{event.source}</span>
+                                      <span className="font-mono text-slate-500">{event.occurredAt}</span>
+                                      <span className={`font-bold ${
+                                        isLatest ? 'text-red-600' : 'text-slate-700'
+                                      }`}>{event.status}</span>
+                                    </div>
+                                    <div className="mt-2 text-sm font-semibold text-slate-800">{event.description}</div>
+                                    <div className="mt-1 text-xs text-slate-500">地点：{event.location || '-'}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="py-14 text-center text-xs text-slate-400">暂无运踪节点</div>
+                          )}
+                        </div>
+                      </section>
+                    )}
                     {downstreamDetailTab === '其它信息' && (
                       <section className="rounded-md bg-white p-4 shadow-sm">
                         <div className="mb-3 flex items-center justify-between">
@@ -2838,6 +3009,80 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                 </div>
               )}
 
+              {showTrackingModal && activeOrder && (
+                <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/50">
+                  <div className="w-[560px] rounded bg-white shadow-2xl">
+                    <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-950">新增运踪</h3>
+                        <p className="mt-1 text-[11px] text-slate-500">{getOverseasWaybillNo(activeOrder)}</p>
+                      </div>
+                      <button type="button" onClick={closeTrackingModal} className="rounded p-1 text-slate-500 hover:bg-slate-100" aria-label="关闭新增运踪">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-4 px-8 py-6 text-xs">
+                      <FormRow label="运踪时间" requiredMark>
+                        <input
+                          className={fieldClass}
+                          value={trackingForm.occurredAt}
+                          onChange={(event) => setTrackingForm((prev) => ({ ...prev, occurredAt: event.target.value }))}
+                          placeholder="YYYY-MM-DD HH:mm:ss"
+                        />
+                      </FormRow>
+                      <FormRow label="运踪节点" requiredMark>
+                        <select
+                          className={fieldClass}
+                          value={trackingForm.status}
+                          onChange={(event) => setTrackingForm((prev) => ({ ...prev, status: event.target.value }))}
+                        >
+                          {trackingStatusOptions.map((status) => (
+                            <option key={status}>{status}</option>
+                          ))}
+                        </select>
+                      </FormRow>
+                      <FormRow label="地点">
+                        <input
+                          className={fieldClass}
+                          value={trackingForm.location}
+                          onChange={(event) => setTrackingForm((prev) => ({ ...prev, location: event.target.value }))}
+                          placeholder="请输入运输地点"
+                        />
+                      </FormRow>
+                      <div className="flex items-start gap-3">
+                        <span className={`${labelClass} pt-2`}>
+                          <span className="mr-0.5 text-red-500">*</span>
+                          运踪描述：
+                        </span>
+                        <textarea
+                          className="min-h-20 min-w-0 flex-1 resize-y rounded border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                          value={trackingForm.description}
+                          onChange={(event) => setTrackingForm((prev) => ({ ...prev, description: event.target.value }))}
+                          placeholder="请输入本次运踪节点描述"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 border-t border-slate-200 px-8 py-4">
+                      <button
+                        type="button"
+                        onClick={closeTrackingModal}
+                        className="rounded border border-slate-300 bg-white px-7 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        取消
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveTrackingEvent}
+                        className="rounded bg-blue-600 px-7 py-1.5 text-xs font-bold text-white hover:bg-blue-700"
+                      >
+                        保存
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               {transferPanelOpen && activeOrder && (
                 <div className="absolute right-0 top-0 z-[95] h-full w-[31vw] min-w-[560px] max-w-[680px] overflow-hidden bg-white shadow-2xl">
                   <div className="flex h-10 items-center border-b border-slate-200 bg-white px-4">
