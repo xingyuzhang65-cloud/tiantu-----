@@ -2,8 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   CalendarDays,
-  ChevronDown,
-  ChevronRight,
   CheckCircle2,
   ClipboardList,
   Download,
@@ -416,7 +414,7 @@ type SearchField = {
 };
 
 
-const tableHeaders = ['头程运单号', 'FBA单号', '客户单号', '客户简称', '中转单类型', '总件数', '库存件数', '可用件数', '服务', '客户备注', '内部备注', '代理', '入仓时间', '仓租时间', '操作'];
+const tableHeaders = ['头程运单号', 'FBA单号', '客户单号', '客户简称', '中转单类型', '总件数', '库存件数', '可用件数', '服务', '客户备注', '海外仓备注', '代理', '入仓时间', '仓租时间', '操作'];
 const storageExtendedHeaders = [
   '头程运单号',
   'FBA单号',
@@ -427,7 +425,7 @@ const storageExtendedHeaders = [
   '运单箱数',
   '可下单箱数',
   '客户备注',
-  '内部备注',
+  '海外仓备注',
   '入仓时间（海外仓）',
   '仓租时间',
   '库龄',
@@ -442,6 +440,7 @@ const storageExtendedHeaders = [
   '方数',
   '邮编',
 ];
+const transportationHiddenStorageHeaders = new Set(['入仓时间（海外仓）', '仓租时间', '库龄']);
 
 const overseasSearchFields: SearchField[] = [
   { label: '头程运单号', type: 'input', placeholder: '支持批量' },
@@ -457,7 +456,7 @@ const overseasSearchFields: SearchField[] = [
   { label: '入仓时间', type: 'select', options: ['近 7 天', '近 30 天'] },
   { label: '仓租时间', type: 'select', options: ['近 7 天', '近 30 天'] },
   { label: '客户备注', type: 'input', placeholder: '请输入' },
-  { label: '内部备注', type: 'input', placeholder: '请输入' },
+  { label: '海外仓备注', type: 'input', placeholder: '请输入' },
 ];
 
 const storageSearchFields: SearchField[] = [
@@ -537,7 +536,7 @@ function TransitLogDrawer({
           <table className="w-full table-fixed border-collapse bg-white text-xs">
             <thead className="bg-slate-100 text-slate-800">
               <tr>
-                {['下单时间', '下单人', '下单箱数', '下单箱号', '子单号', '状态'].map((head) => (
+                {['下单时间', '下单人', '下单箱数', '下单箱号', '海外中转单号', '状态'].map((head) => (
                   <th key={head} className="border border-slate-200 px-3 py-2 text-center font-bold">{head}</th>
                 ))}
               </tr>
@@ -692,7 +691,6 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
   const [activeTab, setActiveTab] = useState<TransitStatus | '全部'>(mode === 'storage' ? '运输中' : '全部');
   const [activeStorageOrder, setActiveStorageOrder] = useState<OverseasTransitRow | null>(null);
   const [activeLogOrder, setActiveLogOrder] = useState<OverseasTransitRow | null>(null);
-  const [expandedStorageParentKeys, setExpandedStorageParentKeys] = useState<Record<string, boolean>>({});
   const [pageTransitRows, setPageTransitRows] = useState<OverseasTransitRow[]>(getTransitRowsWithRemovedBoxes);
   const [selectedStorageBoxIndexesByOrder, setSelectedStorageBoxIndexesByOrder] = useState<Record<string, number[]>>({});
   const [storageAddressForm, setStorageAddressForm] = useState<AddressFormState>({ ...emptyAddressForm });
@@ -710,13 +708,6 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
   const activeStorageRemovedBoxNumbers = activeStorageOrderKey ? getRemovedStorageBoxNumbers(activeStorageOrderKey) : [];
   const isStorageSubmissionStatus = mode === 'storage' && (activeStorageOrder?.status === '运输中' || activeStorageOrder?.status === '暂存');
   const activeStorageInstructionRows = activeStorageOrderKey ? (storageInstructionRowsByOrder[activeStorageOrderKey] || []) : [];
-  const storageChildOrdersByParent = useMemo(() => {
-    const grouped: Record<string, CreatedTransitChildOrder[]> = {};
-    getCreatedTransitChildOrders().forEach((child) => {
-      grouped[child.parentHeadWaybillNo] = [...(grouped[child.parentHeadWaybillNo] || []), child];
-    });
-    return grouped;
-  }, [pageTransitRows]);
 
   const filteredRows = useMemo(() => {
     const rows = mode === 'storage'
@@ -725,7 +716,11 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
     return activeTab === '全部' ? rows : rows.filter((row) => row.status === activeTab);
   }, [activeTab, mode, pageTransitRows]);
   const isStorageListMode = mode === 'storage';
-  const visibleTableHeaders = isStorageListMode ? storageExtendedHeaders : tableHeaders;
+  const hideStorageTimingColumns = isStorageListMode && activeTab === '运输中';
+  const visibleTableHeaders = isStorageListMode
+    ? storageExtendedHeaders.filter((header) => !hideStorageTimingColumns || !transportationHiddenStorageHeaders.has(header))
+    : tableHeaders;
+  const storageTableMinWidthClass = hideStorageTimingColumns ? 'min-w-[2750px]' : 'min-w-[3150px]';
 
   const getTabCount = (tab: TransitStatus) => {
     const scopedRows = mode === 'storage'
@@ -734,9 +729,6 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
     return scopedRows.filter((row) => row.status === tab).length;
   };
 
-  const toggleStorageParent = (headWaybillNo: string) => {
-    setExpandedStorageParentKeys((prev) => ({ ...prev, [headWaybillNo]: !prev[headWaybillNo] }));
-  };
   const openDetail = (row?: OverseasTransitRow) => {
     if (mode === 'storage') {
       const nextRow = row || filteredRows[0];
@@ -833,7 +825,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
     setStorageInstructionRowsByOrder((prev) => ({ ...prev, [activeStorageOrderKey]: [] }));
     setStorageAddressForm({ ...emptyAddressForm });
     setActiveStorageOrder(null);
-    addToast(`已提交 ${boxNumbers.length} 箱，已生成子单并流转至海外中转单待确认状态`, 'success');
+    addToast(`已提交 ${boxNumbers.length} 箱，已生成海外中转单并流转至待确认状态`, 'success');
   };
   const openStorageInstructionSelector = () => {
     if (!activeStorageOrderKey) return;
@@ -977,10 +969,10 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
             </label>
             <label className="col-span-2 space-y-1.5">
               <span className="font-semibold text-slate-700">客户备注</span>
-              <input className={`${fieldClass} w-full`} defaultValue="预留仓库存合并出库，海外仓收货后按 FBA 批次入仓。" />
+              <input className={`${fieldClass} w-full bg-slate-50`} defaultValue="预留仓库存合并出库，海外仓收货后按 FBA 批次入仓。" readOnly />
             </label>
             <label className="col-span-2 space-y-1.5">
-              <span className="font-semibold text-slate-700">内部备注</span>
+              <span className="font-semibold text-slate-700">海外仓备注</span>
               <input className={`${fieldClass} w-full`} defaultValue="海外仓收货后同步回传入仓异常。" />
             </label>
             <label className="col-span-2 space-y-1.5">
@@ -1137,12 +1129,12 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
         </div>
 
         <div className="overflow-x-auto border border-slate-200">
-          <table className={`w-full ${isStorageListMode ? 'min-w-[3460px]' : 'min-w-[1800px]'} table-fixed border-collapse text-[11px]`}>
+          <table className={`w-full ${isStorageListMode ? storageTableMinWidthClass : 'min-w-[1800px]'} table-fixed border-collapse text-[11px]`}>
             {isStorageListMode && (
               <colgroup>
                 <col style={{ width: '40px' }} />
                 {visibleTableHeaders.map((head, index) => (
-                  <col key={'storage-col-' + index + '-' + head} style={{ width: index === 0 ? '300px' : index === 1 ? '260px' : index === 2 || index === 3 ? '168px' : '136px' }} />
+                  <col key={'storage-col-' + index + '-' + head} style={{ width: index === 0 ? '184px' : index === 1 ? '156px' : index === 2 ? '128px' : index === 3 ? '156px' : '130px' }} />
                 ))}
               </colgroup>
             )}
@@ -1154,11 +1146,11 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                 {visibleTableHeaders.map((head, index) => (
                   <th
                     key={head}
-                    className={'border border-slate-300 px-3 py-2 font-semibold ' + (
+                    className={'border border-slate-300 py-2 font-semibold ' + (isStorageListMode && index < 4 ? 'px-2 ' : 'px-3 ') + (
                       isStorageListMode && index === 0
                         ? 'sticky left-10 z-30 bg-[#f2f2f2] text-left'
                         : isStorageListMode && index === 1
-                          ? 'sticky left-[340px] z-30 bg-[#f2f2f2] text-left shadow-[1px_0_0_0_rgba(148,163,184,0.45)]'
+                          ? 'sticky left-[224px] z-30 bg-[#f2f2f2] text-left shadow-[1px_0_0_0_rgba(148,163,184,0.45)]'
                           : 'text-center'
                     )}
                   >
@@ -1168,75 +1160,39 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((row) => {
-                const childOrders = isStorageListMode ? (storageChildOrdersByParent[row.headWaybillNo] || []) : [];
-                const isExpanded = !!expandedStorageParentKeys[row.headWaybillNo];
-                return (
-                  <React.Fragment key={row.headWaybillNo}>
-                    <tr
-                      key={row.headWaybillNo}
-                      onDoubleClick={() => openDetail(row)}
-                      title={row.status === '暂存已完成' ? '双击查看暂存已完成详情' : '双击打开中转下单'}
-                      className={'group cursor-pointer text-slate-700 transition-colors hover:bg-blue-50/50 ' + (
-                        isStorageListMode
-                          ? 'h-12 ' + (isExpanded && childOrders.length > 0 ? 'bg-blue-50/60' : 'bg-white')
-                          : 'h-8'
-                      )}
-                    >
-                      <td
-                        className={'border border-slate-300 px-2 text-center ' + (
-                          isStorageListMode
-                            ? 'sticky left-0 z-20 ' + (isExpanded && childOrders.length > 0 ? 'bg-blue-50' : 'bg-white') + ' group-hover:bg-blue-50'
-                            : ''
-                        )}
-                      >
-                        <input type="checkbox" readOnly className="h-3.5 w-3.5 rounded border-slate-300" />
-                      </td>
+              {filteredRows.map((row) => (
+                <tr
+                  key={row.headWaybillNo}
+                  onDoubleClick={() => openDetail(row)}
+                  title={row.status === '暂存已完成' ? '双击查看暂存已完成详情' : '双击打开中转下单'}
+                  className={`group cursor-pointer text-slate-700 transition-colors hover:bg-blue-50/50 ${isStorageListMode ? 'h-12 bg-white' : 'h-8'}`}
+                >
+                  <td className={`border border-slate-300 px-2 text-center ${isStorageListMode ? 'sticky left-0 z-20 bg-white group-hover:bg-blue-50' : ''}`}>
+                    <input type="checkbox" readOnly className="h-3.5 w-3.5 rounded border-slate-300" />
+                  </td>
                       {isStorageListMode ? (
                         <>
-                          <td className={'sticky left-10 z-20 border border-slate-300 px-2 text-left font-mono group-hover:bg-blue-50 ' + (isExpanded && childOrders.length > 0 ? 'bg-blue-50' : 'bg-white')}>
-                            {childOrders.length > 0 ? (
-                              <button
-                                type="button"
-                                onClick={(event) => { event.stopPropagation(); toggleStorageParent(row.headWaybillNo); }}
-                                onDoubleClick={(event) => event.stopPropagation()}
-                                aria-expanded={isExpanded}
-                                aria-label={(isExpanded ? '收起' : '展开') + row.headWaybillNo + ' 的 ' + childOrders.length + ' 个子单'}
-                                className="group/tree flex w-full items-center gap-2 px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                                title={(isExpanded ? '收起子单：' : '展开子单：') + row.headWaybillNo}
-                              >
-                                <span className="flex h-7 w-7 shrink-0 items-center justify-center text-blue-600 transition-colors group-hover/tree:text-blue-700">
-                                  {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                                </span>
-                                <span className="min-w-0">
-                                  <span className="flex items-center">
-                                    <span className="font-semibold text-slate-800">{row.headWaybillNo}</span>
-                                  </span>
-                                  <span className="mt-0.5 block font-sans text-[10px] font-medium text-blue-600">
-                                    {isExpanded ? '收起子单' : '展开查看 ' + childOrders.length + ' 个子单'}
-                                  </span>
-                                </span>
-                              </button>
-                            ) : (
-                              <div className="flex items-center py-1 pl-10 pr-1">
-                                <span className="font-medium text-slate-700">{row.headWaybillNo}</span>
-                              </div>
-                            )}
+                          <td className="sticky left-10 z-20 border border-slate-300 bg-white px-2 text-left font-mono group-hover:bg-blue-50">
+                            <span className="block truncate font-semibold text-slate-800" title={row.headWaybillNo}>{row.headWaybillNo}</span>
                           </td>
-                          <td className={'sticky left-[340px] z-20 border border-slate-300 px-3 text-left font-mono shadow-[1px_0_0_0_rgba(148,163,184,0.35)] group-hover:bg-blue-50 ' + (isExpanded && childOrders.length > 0 ? 'bg-blue-50' : 'bg-white')}>
-                            <span className="font-semibold text-slate-800">{row.fbaNo || '-'}</span>
+                          <td className="sticky left-[224px] z-20 border border-slate-300 bg-white px-2 text-left font-mono shadow-[1px_0_0_0_rgba(148,163,184,0.35)] group-hover:bg-blue-50">
+                            <span className="block truncate font-semibold text-slate-800" title={row.fbaNo || '-'}>{row.fbaNo || '-'}</span>
                           </td>
-                          <td className="border border-slate-300 px-3 text-center font-mono">{row.containerNo || '-'}</td>
-                          <td className="border border-slate-300 px-3 text-center font-mono">{row.billOfLadingNo || '-'}</td>
+                          <td className="border border-slate-300 px-2 text-center font-mono">{row.containerNo || '-'}</td>
+                          <td className="border border-slate-300 px-2 text-center font-mono">{row.billOfLadingNo || '-'}</td>
                           <td className="border border-slate-300 px-3 text-center">{row.customerOrderNo}</td>
                           <td className="border border-slate-300 px-3 text-center">{row.customer}</td>
                           <td className="border border-slate-300 px-3 text-right tabular-nums">{row.totalCount}</td>
                           <td className="border border-slate-300 px-3 text-right tabular-nums">{getRemainingBoxCount(row)}</td>
                           <td className="border border-slate-300 px-3 text-left" title={row.customerRemark || ''}><div className="truncate">{row.customerRemark || '-'}</div></td>
                           <td className="border border-slate-300 px-3 text-left" title={row.overseasWarehouseRemark || ''}><div className="truncate">{row.overseasWarehouseRemark || '-'}</div></td>
-                          <td className="border border-slate-300 px-3 text-center font-mono">{row.inboundAt}</td>
-                          <td className="border border-slate-300 px-3 text-center font-mono">{row.warehouseAt}</td>
-                          <td className="border border-slate-300 px-3 text-center">{getStorageAgeText(row.inboundAt)}</td>
+                          {!hideStorageTimingColumns && (
+                            <>
+                              <td className="border border-slate-300 px-3 text-center font-mono">{row.inboundAt}</td>
+                              <td className="border border-slate-300 px-3 text-center font-mono">{row.warehouseAt}</td>
+                              <td className="border border-slate-300 px-3 text-center">{getStorageAgeText(row.inboundAt)}</td>
+                            </>
+                          )}
                           <td className="border border-slate-300 px-3 text-center font-mono">{row.transferNo || '-'}</td>
                           <td className="border border-slate-300 px-3 text-center">{row.warehouseCode || '-'}</td>
                           <td className="border border-slate-300 px-3 text-center">{row.salesRepresentative || row.salesman || '-'}</td>
@@ -1271,59 +1227,8 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                           </td>
                         </>
                       )}
-                    </tr>
-                    {isStorageListMode && isExpanded && childOrders.map((child, childIndex) => (
-                      <tr
-                        key={'child-' + child.id}
-                        className="group h-[58px] bg-[#f7fbff] text-slate-600 transition-colors hover:bg-blue-50"
-                        aria-label={'子单 ' + child.orderSeq + '，子单号 ' + child.id}
-                      >
-                        <td className="sticky left-0 z-20 border border-slate-300 bg-[#f7fbff] px-2 group-hover:bg-blue-50" aria-hidden="true"></td>
-                        <td className="sticky left-10 z-20 border border-slate-300 bg-[#f7fbff] px-2 text-left font-mono group-hover:bg-blue-50">
-                          <div className="relative flex min-h-[52px] flex-wrap items-center gap-1.5 pl-8">
-                            <span
-                              aria-hidden="true"
-                              className="absolute left-3 top-0 w-px bg-blue-300"
-                              style={{ height: childIndex === childOrders.length - 1 ? '50%' : '100%' }}
-                            />
-                            <span aria-hidden="true" className="absolute left-3 top-1/2 h-px w-4 bg-blue-300" />
-                            <span className="px-1 py-1 font-sans text-[10px] font-bold text-blue-700">
-                              子单 {child.orderSeq}
-                            </span>
-                            <span className="inline-flex items-center px-1 py-1 font-mono text-[10px] font-semibold text-blue-700" title={child.id}>
-                              {child.id}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="sticky left-[340px] z-20 border border-slate-300 bg-[#f7fbff] px-3 text-left font-mono shadow-[1px_0_0_0_rgba(148,163,184,0.35)] group-hover:bg-blue-50">
-                          <span className="font-semibold text-slate-800">{child.fbaCode || '-'}</span>
-                        </td>
-                        <td className="border border-slate-300 px-3 text-center font-mono">{child.containerNo || '-'}</td>
-                        <td className="border border-slate-300 px-3 text-center font-mono">{child.billOfLadingNo || '-'}</td>
-                        <td className="border border-slate-300 px-3 text-center">-</td>
-                        <td className="border border-slate-300 px-3 text-center">{child.customerName}</td>
-                        <td className="border border-slate-300 px-3 text-right tabular-nums">{child.packages}</td>
-                        <td className="border border-slate-300 px-3 text-right tabular-nums">{child.status === '取消' ? 0 : child.packages}</td>
-                        <td className="border border-slate-300 px-3 text-left" title={child.customerRemark || ''}><div className="truncate">{child.customerRemark || '-'}</div></td>
-                        <td className="border border-slate-300 px-3 text-left" title={child.overseasWarehouseRemark || ''}><div className="truncate">{child.overseasWarehouseRemark || '-'}</div></td>
-                        <td className="border border-slate-300 px-3 text-center font-mono">{child.inboundTime}</td>
-                        <td className="border border-slate-300 px-3 text-center font-mono">{row.warehouseAt}</td>
-                        <td className="border border-slate-300 px-3 text-center">{getStorageAgeText(child.inboundTime)}</td>
-                        <td className="border border-slate-300 px-3 text-center font-mono">{child.transferNo || '-'}</td>
-                        <td className="border border-slate-300 px-3 text-center">{child.warehouseCode || '-'}</td>
-                        <td className="border border-slate-300 px-3 text-center">{child.salesman || '-'}</td>
-                        <td className="border border-slate-300 px-3 text-center">{child.merchandiser || '-'}</td>
-                        <td className="border border-slate-300 px-3 text-center">-</td>
-                        <td className="border border-slate-300 px-3 text-center">{child.weight.replace('kg', '')}</td>
-                        <td className="border border-slate-300 px-3 text-center">{child.weight.replace('kg', '')}</td>
-                        <td className="border border-slate-300 px-3 text-center">{child.weight.replace('kg', '')}</td>
-                        <td className="border border-slate-300 px-3 text-center">{child.volume}</td>
-                        <td className="border border-slate-300 px-3 text-center font-mono">{child.zipCode || '-'}</td>
-                      </tr>
-                    ))}
-                  </React.Fragment>
-                );
-              })}
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -1381,7 +1286,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                     <DrawerReadonlyField label="跟单代表">{activeStorageOrder.followupRepresentative || '-'}</DrawerReadonlyField>
                     <DrawerReadonlyField label="财务代表">{activeStorageOrder.financeRepresentative || '-'}</DrawerReadonlyField>
                     <DrawerReadonlyField label="客户备注" className="col-span-2">{activeStorageOrder.customerRemark || '-'}</DrawerReadonlyField>
-                    <DrawerReadonlyField label="内部备注" className="col-span-2">{activeStorageOrder.overseasWarehouseRemark || '-'}</DrawerReadonlyField>
+                    <DrawerReadonlyField label="海外仓备注" className="col-span-2">{activeStorageOrder.overseasWarehouseRemark || '-'}</DrawerReadonlyField>
                   </div>
                 </section>
               ) : (
@@ -1406,12 +1311,12 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                     <span className="font-bold text-slate-900">服务：</span>
                     <span>{activeStorageOrder.service}</span>
                   </div>
-                  <div>
+                  <div className="col-span-2">
                     <span className="font-bold text-slate-900">客户备注：</span>
                     <span>{activeStorageOrder.customerRemark || '-'}</span>
                   </div>
                   <div>
-                    <span className="font-bold text-slate-900">内部备注：</span>
+                    <span className="font-bold text-slate-900">海外仓备注：</span>
                     <span>{activeStorageOrder.overseasWarehouseRemark || '-'}</span>
                   </div>
                 </div>
@@ -1434,7 +1339,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                       <DrawerReadonlyField label="公司">{storageAddressForm.company || '-'}</DrawerReadonlyField>
                       <DrawerReadonlyField label="地址详情" required className="col-span-2">{storageAddressForm.addressDetail}</DrawerReadonlyField>
                       <DrawerReadonlyField label="客户备注" className="col-span-2">{storageAddressForm.remark || '-'}</DrawerReadonlyField>
-                      <DrawerReadonlyField label="内部备注" className="col-span-2">{storageAddressForm.overseasWarehouseRemark || '-'}</DrawerReadonlyField>
+                      <DrawerReadonlyField label="海外仓备注" className="col-span-2">{storageAddressForm.overseasWarehouseRemark || '-'}</DrawerReadonlyField>
                     </>
                   ) : (
                     <>
@@ -1525,15 +1430,8 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                         onChange={(value) => updateStorageAddressField('addressDetail', value)}
                       />
                       <DrawerTextareaRow
-                        label="客户备注"
-                        placeholder="请输入客户备注"
-                        limit={`${storageAddressForm.remark.length}/500`}
-                        value={storageAddressForm.remark}
-                        onChange={(value) => updateStorageAddressField('remark', value)}
-                      />
-                      <DrawerTextareaRow
-                        label="内部备注"
-                        placeholder="请输入内部备注"
+                        label="海外仓备注"
+                        placeholder="请输入海外仓备注"
                         limit={`${storageAddressForm.overseasWarehouseRemark.length}/500`}
                         value={storageAddressForm.overseasWarehouseRemark}
                         onChange={(value) => updateStorageAddressField('overseasWarehouseRemark', value)}

@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   FileText,
+  Printer,
   Search,
+  Settings2,
   X,
 } from 'lucide-react';
 import {
@@ -366,6 +368,80 @@ const seedTransitRows: OverseasTransitRow[] = [
     inboundTime: '2026-07-12 19:10',
   },
   {
+    id: 'YT2507130005',
+    fbaCode: 'FBA20EUDE001',
+    customerName: '宁波启航跨境仓储',
+    destination: '德国',
+    channel: '欧线卡派',
+    childCreatedAt: '2026-07-13 13:28',
+    orderSeq: 1,
+    transferNo: '',
+    customerRemark: '德国仓预约周二送达',
+    overseasWarehouseRemark: '欧仓已完成地址和税号预审',
+    warehouseCode: 'DTM2',
+    zipCode: '44145',
+    orderType: 'FBA',
+    addressForm: {
+      ...emptyAddressForm,
+      orderType: 'FBA',
+      warehouseCode: 'DTM2',
+      zipCode: '44145',
+      consignee: 'Amazon DTM2',
+      phone: '+49 231 000000',
+      city: 'Dortmund',
+      state: 'Nordrhein-Westfalen',
+      company: 'Amazon Logistik Dortmund GmbH',
+      addressDetail: 'Kaltbandstrasse 4',
+      remark: '德国仓预约周二送达',
+      overseasWarehouseRemark: '欧仓已完成地址和税号预审',
+    },
+    salesman: '天朗',
+    merchandiser: '安逸',
+    status: '已确认',
+    packages: 2,
+    weight: '64.8kg',
+    volume: '0.36',
+    inboundTime: '2026-07-12 20:05',
+    boxNumbers: ['EUDTM2-0001', 'EUDTM2-0002'],
+  },
+  {
+    id: 'YT2507130006',
+    fbaCode: 'FBA20EUGB001',
+    customerName: '厦门万和供应链',
+    destination: '英国',
+    channel: '欧线快递',
+    childCreatedAt: '2026-07-13 14:16',
+    orderSeq: 1,
+    transferNo: '',
+    customerRemark: '英国仓需要预约号随标签打印',
+    overseasWarehouseRemark: '欧仓等待生成尾程面单',
+    warehouseCode: 'BHX4',
+    zipCode: 'CV23 8BQ',
+    orderType: 'FBA',
+    addressForm: {
+      ...emptyAddressForm,
+      orderType: 'FBA',
+      warehouseCode: 'BHX4',
+      zipCode: 'CV23 8BQ',
+      consignee: 'Amazon BHX4',
+      phone: '+44 1788 000000',
+      city: 'Rugby',
+      state: 'Warwickshire',
+      company: 'Amazon UK Services Ltd',
+      addressDetail: 'Plot 1, Central Park',
+      remark: '英国仓需要预约号随标签打印',
+      overseasWarehouseRemark: '欧仓等待生成尾程面单',
+    },
+    salesman: '张运营',
+    merchandiser: '李客服',
+    status: '已确认',
+    packages: 3,
+    weight: '89.6kg',
+    volume: '0.44',
+    inboundTime: '2026-07-12 20:42',
+    boxNumbers: ['EUBHX4-0001', 'EUBHX4-0002', 'EUBHX4-0003'],
+  },
+  {
     id: 'YT2507130003',
     fbaCode: 'FBA20SIGN001',
     customerName: '厦门万和供应链',
@@ -472,6 +548,29 @@ const required = <span className="text-red-500">* </span>;
 
 type LifecycleTimeKey = 'orderedAt' | 'outboundAt' | 'signedAt';
 type LifecycleTimeValues = Partial<Record<LifecycleTimeKey, string | undefined>>;
+
+type ExpressLineTab = '美线打单' | '欧线打单';
+
+type ExpressBatchConfig = {
+  platform: string;
+  businessUnit: string;
+  shippingAccount: string;
+  service: string;
+  labelSpec: string;
+  currency: string;
+  signatureService: string;
+  tradeTerm: string;
+  taxNumber: string;
+};
+
+type ExpressCreationRecord = {
+  line: ExpressLineTab;
+  trackingNo: string;
+  platform: string;
+  shippingAccount: string;
+  service: string;
+  createdAt: string;
+};
 
 type OrderSearchField = {
   label: string;
@@ -753,6 +852,380 @@ const formatDateTime = (date = new Date()) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 };
 
+const europeanDestinationPattern = /英国|德国|法国|意大利|西班牙|荷兰|比利时|波兰|捷克|奥地利|爱尔兰|葡萄牙|瑞典|丹麦|芬兰|挪威|瑞士|欧洲|欧线/i;
+
+const getExpressLine = (row: OverseasTransitRow): ExpressLineTab => (
+  europeanDestinationPattern.test(`${row.destination} ${row.channel}`) ? '欧线打单' : '美线打单'
+);
+
+const expressConfigDefaults: Record<ExpressLineTab, ExpressBatchConfig> = {
+  美线打单: {
+    platform: '佳邮 ShipOS',
+    businessUnit: '深圳天图',
+    shippingAccount: 'US1038',
+    service: 'UPS Ground',
+    labelSpec: '100×150mm',
+    currency: 'USD',
+    signatureService: '无需签名',
+    tradeTerm: 'DDP',
+    taxNumber: '',
+  },
+  欧线打单: {
+    platform: '欧速清',
+    businessUnit: '深圳天图',
+    shippingAccount: '心一供应链',
+    service: 'EU UPS Standard',
+    labelSpec: '100×150mm',
+    currency: 'EUR',
+    signatureService: '无需签名',
+    tradeTerm: 'DDP',
+    taxNumber: 'DE-EORI-202607',
+  },
+};
+
+const expressPlatformOptions: Record<ExpressLineTab, string[]> = {
+  美线打单: ['佳邮 ShipOS', 'K-新智慧', 'Dragon', '进取'],
+  欧线打单: ['欧速清', '欧拉拉', 'YSD-新智慧', 'CONWEST'],
+};
+
+const expressAccountOptions: Record<ExpressLineTab, string[]> = {
+  美线打单: ['US1038', 'SZXY001', 'tiantutongxun'],
+  欧线打单: ['心一供应链', 'SZYY001', 'EU-TIANTU-01'],
+};
+
+const expressServiceOptions: Record<ExpressLineTab, string[]> = {
+  美线打单: ['UPS Ground', 'FedEx Home Delivery', 'USPS Ground Advantage'],
+  欧线打单: ['EU UPS Standard', 'DPD Classic', 'DHL Parcel Connect'],
+};
+
+const getExpressValidationMessage = (row: OverseasTransitRow) => {
+  const address = getParentStorageAddressForm(row);
+  const missing: string[] = [];
+  if (!row.destination) missing.push('目的国家');
+  if (!row.warehouseCode) missing.push('仓库代码');
+  if (!address.consignee) missing.push('收件人');
+  if (!address.zipCode) missing.push('邮编');
+  if (!address.city || !address.addressDetail) missing.push('详细地址');
+  if (!row.packages) missing.push('箱数');
+  if (!(Number(row.weight.replace(/[^\d.]/g, '')) > 0)) missing.push('重量');
+  return missing.length > 0 ? `缺少${missing.join('、')}` : '';
+};
+
+function ExpressOrderCreationWorkspace({
+  rows,
+  records,
+  addToast,
+  onClose,
+  onCreate,
+}: {
+  rows: OverseasTransitRow[];
+  records: Record<string, ExpressCreationRecord>;
+  addToast: OverseasTransitOrderPageProps['addToast'];
+  onClose: () => void;
+  onCreate: (rowsToCreate: OverseasTransitRow[], line: ExpressLineTab, config: ExpressBatchConfig) => void;
+}) {
+  const [activeLine, setActiveLine] = useState<ExpressLineTab>(() => getExpressLine(rows[0]));
+  const [keyword, setKeyword] = useState('');
+  const [warehouseFilter, setWarehouseFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [configs, setConfigs] = useState<Record<ExpressLineTab, ExpressBatchConfig>>(() => ({
+    美线打单: { ...expressConfigDefaults.美线打单 },
+    欧线打单: { ...expressConfigDefaults.欧线打单 },
+  }));
+  const [selectedKeys, setSelectedKeys] = useState<string[]>(() => rows
+    .filter((row) => !records[getOrderKey(row)] && !getExpressValidationMessage(row))
+    .map(getOrderKey));
+
+  const lineCounts = {
+    美线打单: rows.filter((row) => getExpressLine(row) === '美线打单').length,
+    欧线打单: rows.filter((row) => getExpressLine(row) === '欧线打单').length,
+  };
+  const lineRows = rows.filter((row) => getExpressLine(row) === activeLine);
+  const activeConfig = configs[activeLine];
+  const warehouseOptions = Array.from(new Set(lineRows.map((row) => row.warehouseCode || '').filter(Boolean)));
+  const visibleRows = lineRows.filter((row) => {
+    const record = records[getOrderKey(row)];
+    const validationMessage = getExpressValidationMessage(row);
+    const rowStatus = record ? '已创建' : validationMessage ? '资料异常' : '待创建';
+    const normalizedKeyword = keyword.trim().toLowerCase();
+    const matchesKeyword = !normalizedKeyword || [getOrderKey(row), row.id, row.fbaCode, row.customerName, row.warehouseCode || '']
+      .some((value) => value.toLowerCase().includes(normalizedKeyword));
+    return matchesKeyword
+      && (!warehouseFilter || row.warehouseCode === warehouseFilter)
+      && (!statusFilter || rowStatus === statusFilter);
+  });
+  const selectableVisibleKeys = visibleRows
+    .filter((row) => !records[getOrderKey(row)] && !getExpressValidationMessage(row))
+    .map(getOrderKey);
+  const selectedCurrentRows = lineRows.filter((row) => selectedKeys.includes(getOrderKey(row)) && !records[getOrderKey(row)] && !getExpressValidationMessage(row));
+  const totalPackages = rows.reduce((sum, row) => sum + row.packages, 0);
+  const totalWeight = rows.reduce((sum, row) => sum + (Number(row.weight.replace(/[^\d.]/g, '')) || 0), 0);
+  const activeCreatedCount = lineRows.filter((row) => records[getOrderKey(row)]).length;
+
+  const updateConfig = (field: keyof ExpressBatchConfig, value: string) => {
+    setConfigs((prev) => ({ ...prev, [activeLine]: { ...prev[activeLine], [field]: value } }));
+  };
+
+  const toggleRow = (orderKey: string) => {
+    setSelectedKeys((prev) => (prev.includes(orderKey) ? prev.filter((key) => key !== orderKey) : [...prev, orderKey]));
+  };
+
+  const toggleAllVisibleRows = () => {
+    if (selectableVisibleKeys.length === 0) return;
+    setSelectedKeys((prev) => (
+      selectableVisibleKeys.every((key) => prev.includes(key))
+        ? prev.filter((key) => !selectableVisibleKeys.includes(key))
+        : Array.from(new Set([...prev, ...selectableVisibleKeys]))
+    ));
+  };
+
+  const createSelectedExpressOrders = () => {
+    if (!activeConfig.platform || !activeConfig.shippingAccount || !activeConfig.service) {
+      addToast('请先完整选择打单平台、发货账号和快递服务', 'warning');
+      return;
+    }
+    if (selectedCurrentRows.length === 0) {
+      addToast(`请先勾选${activeLine}中需要创建的子单`, 'warning');
+      return;
+    }
+    onCreate(selectedCurrentRows, activeLine, activeConfig);
+    const createdKeys = new Set(selectedCurrentRows.map(getOrderKey));
+    setSelectedKeys((prev) => prev.filter((key) => !createdKeys.has(key)));
+  };
+
+  const resetFilters = () => {
+    setKeyword('');
+    setWarehouseFilter('');
+    setStatusFilter('');
+    addToast(`已重置${activeLine}筛选条件`, 'info');
+  };
+
+  return (
+    <div className="fixed inset-0 z-[75] flex items-center justify-center bg-black/45 p-5">
+      <div className="flex h-[94vh] w-[96vw] max-w-[1800px] flex-col overflow-hidden rounded-md bg-slate-100 shadow-2xl">
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6">
+          <div className="flex items-center gap-4">
+            <span className="flex h-8 w-8 items-center justify-center rounded bg-blue-50 text-[#004bb1]"><Printer className="h-4 w-4" /></span>
+            <div>
+              <div className="flex items-center gap-3">
+                <h2 className="text-base font-bold text-slate-950">创建快递单</h2>
+                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-[#004bb1]">来源：海外中转单 · 已确认</span>
+              </div>
+              <p className="mt-0.5 text-[11px] text-slate-500">已选 {rows.length} 条子单 · {totalPackages} 箱 · {totalWeight.toFixed(1)}kg；创建后原单仍保留在已确认。</p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="rounded p-1.5 text-slate-500 hover:bg-slate-100" aria-label="关闭创建快递单"><X className="h-5 w-5" /></button>
+        </div>
+
+        <div className="shrink-0 border-b border-slate-200 bg-white px-6">
+          <div className="flex h-12 items-end gap-10 text-xs font-bold">
+            {(['美线打单', '欧线打单'] as const).map((line) => (
+              <button key={line} type="button" onClick={() => setActiveLine(line)} className={`relative h-12 px-2 ${activeLine === line ? 'text-[#004bb1]' : 'text-slate-600 hover:text-[#004bb1]'}`}>
+                {line}（{lineCounts[line]}）
+                {activeLine === line && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#004bb1]" />}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-auto p-4">
+          <div className="mb-3 rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="grid grid-cols-1 items-end gap-3 text-xs lg:grid-cols-[minmax(280px,2fr)_minmax(160px,1fr)_minmax(160px,1fr)_100px_100px]">
+              <label className="min-w-0">
+                <span className="mb-1.5 block font-semibold text-slate-700">关键字</span>
+                <input value={keyword} onChange={(event) => setKeyword(event.target.value)} className={fieldClass} placeholder="海外仓运单号 / 头程运单号 / FBA单号 / 客户" />
+              </label>
+              <label className="min-w-0">
+                <span className="mb-1.5 block font-semibold text-slate-700">仓库代码</span>
+                <select value={warehouseFilter} onChange={(event) => setWarehouseFilter(event.target.value)} className={fieldClass}>
+                  <option value="">全部仓库</option>
+                  {warehouseOptions.map((code) => <option key={code}>{code}</option>)}
+                </select>
+              </label>
+              <label className="min-w-0">
+                <span className="mb-1.5 block font-semibold text-slate-700">创建状态</span>
+                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={fieldClass}>
+                  <option value="">全部状态</option>
+                  <option>待创建</option>
+                  <option>已创建</option>
+                  <option>资料异常</option>
+                </select>
+              </label>
+              <button type="button" onClick={() => addToast(`已查询到 ${visibleRows.length} 条${activeLine}数据`, 'success')} className="flex h-8 items-center justify-center gap-1 rounded bg-[#004bb1] px-4 font-bold text-white hover:bg-[#003b91]">
+                <Search className="h-3.5 w-3.5" />查询
+              </button>
+              <button type="button" onClick={resetFilters} className="h-8 rounded border border-slate-300 bg-white px-4 font-semibold text-slate-600 hover:bg-slate-50">重置</button>
+            </div>
+          </div>
+
+          <div className="mb-3 rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-bold text-slate-900">{activeLine}批量配置</h3>
+                <p className="mt-1 text-[11px] text-slate-500">当前配置仅应用于本子 TAB 内勾选的待创建子单。</p>
+              </div>
+              <span className="rounded bg-slate-100 px-2.5 py-1 text-[11px] text-slate-600">已勾选 {selectedCurrentRows.length} 条</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-[11px] md:grid-cols-4 2xl:grid-cols-8">
+              <label>
+                <span className="mb-1 block font-semibold text-slate-600"><span className="text-red-500">* </span>打单平台</span>
+                <select className={fieldClass} value={activeConfig.platform} onChange={(event) => updateConfig('platform', event.target.value)}>
+                  {expressPlatformOptions[activeLine].map((item) => <option key={item}>{item}</option>)}
+                </select>
+              </label>
+              <label>
+                <span className="mb-1 block font-semibold text-slate-600">经营单位</span>
+                <select className={fieldClass} value={activeConfig.businessUnit} onChange={(event) => updateConfig('businessUnit', event.target.value)}>
+                  <option>深圳天图</option><option>广州天图</option><option>义乌天图</option>
+                </select>
+              </label>
+              <label>
+                <span className="mb-1 block font-semibold text-slate-600"><span className="text-red-500">* </span>发货账号</span>
+                <select className={fieldClass} value={activeConfig.shippingAccount} onChange={(event) => updateConfig('shippingAccount', event.target.value)}>
+                  {expressAccountOptions[activeLine].map((item) => <option key={item}>{item}</option>)}
+                </select>
+              </label>
+              <label>
+                <span className="mb-1 block font-semibold text-slate-600"><span className="text-red-500">* </span>快递服务</span>
+                <select className={fieldClass} value={activeConfig.service} onChange={(event) => updateConfig('service', event.target.value)}>
+                  {expressServiceOptions[activeLine].map((item) => <option key={item}>{item}</option>)}
+                </select>
+              </label>
+              <label>
+                <span className="mb-1 block font-semibold text-slate-600">标签规格</span>
+                <select className={fieldClass} value={activeConfig.labelSpec} onChange={(event) => updateConfig('labelSpec', event.target.value)}><option>100×150mm</option><option>A4</option></select>
+              </label>
+              <label>
+                <span className="mb-1 block font-semibold text-slate-600">申报币种</span>
+                <select className={fieldClass} value={activeConfig.currency} onChange={(event) => updateConfig('currency', event.target.value)}>
+                  {activeLine === '美线打单' ? <><option>USD</option><option>CAD</option></> : <><option>EUR</option><option>GBP</option><option>USD</option></>}
+                </select>
+              </label>
+              {activeLine === '美线打单' ? (
+                <>
+                  <label><span className="mb-1 block font-semibold text-slate-600">签名服务</span><select className={fieldClass} value={activeConfig.signatureService} onChange={(event) => updateConfig('signatureService', event.target.value)}><option>无需签名</option><option>直接签名</option><option>成人签名</option></select></label>
+                  <label><span className="mb-1 block font-semibold text-slate-600">偏远地址</span><select className={fieldClass} defaultValue="自动识别"><option>自动识别</option><option>允许附加费</option><option>拦截异常</option></select></label>
+                </>
+              ) : (
+                <>
+                  <label><span className="mb-1 block font-semibold text-slate-600">贸易条款</span><select className={fieldClass} value={activeConfig.tradeTerm} onChange={(event) => updateConfig('tradeTerm', event.target.value)}><option>DDP</option><option>DAP</option></select></label>
+                  <label><span className="mb-1 block font-semibold text-slate-600">VAT / EORI / IOSS</span><input className={fieldClass} value={activeConfig.taxNumber} onChange={(event) => updateConfig('taxNumber', event.target.value)} placeholder="请输入税号" /></label>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => addToast(`${activeLine}资料校验已刷新`, 'success')} className="rounded bg-[#004bb1] px-3 py-2 text-xs font-bold text-white hover:bg-[#003b91]">刷新校验</button>
+                <button type="button" onClick={() => activeCreatedCount > 0 ? addToast(`已生成 ${activeCreatedCount} 张${activeLine}标签`, 'success') : addToast(`当前${activeLine}暂无可打印标签`, 'warning')} className="flex items-center gap-1 rounded bg-[#004bb1] px-3 py-2 text-xs font-bold text-white hover:bg-[#003b91]"><Printer className="h-3.5 w-3.5" />打印标签</button>
+                <button type="button" onClick={() => addToast(`${activeLine}快递单状态已同步`, 'success')} className="rounded bg-[#004bb1] px-3 py-2 text-xs font-bold text-white hover:bg-[#003b91]">同步状态</button>
+                <button type="button" onClick={() => addToast(`已导出 ${visibleRows.length} 条${activeLine}数据`, 'info')} className="rounded bg-[#004bb1] px-3 py-2 text-xs font-bold text-white hover:bg-[#003b91]">导出</button>
+              </div>
+              <button type="button" onClick={() => addToast('表头设置功能为展示', 'info')} className="rounded bg-[#004bb1] p-2 text-white hover:bg-[#003b91]" aria-label="创建快递单表头设置"><Settings2 className="h-4 w-4" /></button>
+            </div>
+
+            <div className="overflow-x-auto border border-slate-200">
+              <table className="w-full min-w-[2380px] table-fixed border-collapse text-[11px]">
+                <thead className="bg-slate-50 text-slate-700">
+                  <tr>
+                    <th className="w-10 border border-slate-200 px-2 py-2 text-center"><input type="checkbox" checked={selectableVisibleKeys.length > 0 && selectableVisibleKeys.every((key) => selectedKeys.includes(key))} onChange={toggleAllVisibleRows} className="h-3.5 w-3.5 rounded border-slate-300" /></th>
+                    <th className="w-24 border border-slate-200 px-3 py-2 text-center">校验 / 状态</th>
+                    <th className="w-52 border border-slate-200 px-3 py-2 text-center">海外仓运单号</th>
+                    <th className="w-40 border border-slate-200 px-3 py-2 text-center">头程运单号</th>
+                    <th className="w-40 border border-slate-200 px-3 py-2 text-center">FBA单号</th>
+                    <th className="w-44 border border-slate-200 px-3 py-2 text-center">客户简称</th>
+                    <th className="w-28 border border-slate-200 px-3 py-2 text-center">目的地 / 仓库</th>
+                    <th className="w-64 border border-slate-200 px-3 py-2 text-center">收件人 / 地址</th>
+                    <th className="w-24 border border-slate-200 px-3 py-2 text-center">邮编</th>
+                    <th className="w-24 border border-slate-200 px-3 py-2 text-center">箱数 / 实重</th>
+                    <th className="w-24 border border-slate-200 px-3 py-2 text-center">下单类型</th>
+                    <th className="w-40 border border-slate-200 px-3 py-2 text-center">尾程渠道</th>
+                    <th className="w-32 border border-slate-200 px-3 py-2 text-center">打单平台</th>
+                    <th className="w-44 border border-slate-200 px-3 py-2 text-center">发货账号 / 服务</th>
+                    <th className="w-48 border border-slate-200 px-3 py-2 text-center">快递单号 / 创建时间</th>
+                    <th className="w-24 border border-slate-200 px-3 py-2 text-center">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleRows.map((row) => {
+                    const orderKey = getOrderKey(row);
+                    const record = records[orderKey];
+                    const validationMessage = getExpressValidationMessage(row);
+                    const address = getParentStorageAddressForm(row);
+                    const disabled = !!record || !!validationMessage;
+                    return (
+                      <tr key={orderKey} className={`h-12 text-slate-700 hover:bg-blue-50/50 ${selectedKeys.includes(orderKey) ? 'bg-blue-50/30' : ''}`}>
+                        <td className="border border-slate-200 px-2 text-center">
+                          <input type="checkbox" checked={selectedKeys.includes(orderKey)} disabled={disabled} onChange={() => toggleRow(orderKey)} className="h-3.5 w-3.5 rounded border-slate-300 disabled:cursor-not-allowed disabled:opacity-40" />
+                        </td>
+                        <td className="border border-slate-200 px-2 text-center">
+                          {record ? (
+                            <span className="rounded-full bg-emerald-50 px-2 py-1 font-bold text-emerald-600">已创建</span>
+                          ) : validationMessage ? (
+                            <span title={validationMessage} className="rounded-full bg-rose-50 px-2 py-1 font-bold text-rose-600">资料异常</span>
+                          ) : (
+                            <span className="rounded-full bg-amber-50 px-2 py-1 font-bold text-amber-600">待创建</span>
+                          )}
+                        </td>
+                        <td className="border border-slate-200 px-3 text-center font-mono font-semibold text-blue-600">{orderKey}</td>
+                        <td className="border border-slate-200 px-3 text-center font-mono">{row.id}</td>
+                        <td className="border border-slate-200 px-3 text-center font-mono">{row.fbaCode}</td>
+                        <td className="border border-slate-200 px-3 text-center"><div className="truncate" title={row.customerName}>{row.customerName}</div></td>
+                        <td className="border border-slate-200 px-3 text-center"><div>{row.destination}</div><div className="mt-1 font-mono text-slate-500">{row.warehouseCode || '-'}</div></td>
+                        <td className="border border-slate-200 px-3">
+                          <div className="font-semibold text-slate-800">{address.consignee || '-'}</div>
+                          <div className="mt-1 truncate text-slate-500" title={`${address.addressDetail}, ${address.city}, ${address.state}`}>{[address.addressDetail, address.city, address.state].filter(Boolean).join(', ') || '-'}</div>
+                        </td>
+                        <td className="border border-slate-200 px-3 text-center font-mono">{address.zipCode || '-'}</td>
+                        <td className="border border-slate-200 px-3 text-center"><div>{row.packages} 箱</div><div className="mt-1 text-slate-500">{row.weight}</div></td>
+                        <td className="border border-slate-200 px-3 text-center">{row.orderType || '-'}</td>
+                        <td className="border border-slate-200 px-3 text-center"><div className="truncate" title={row.channel}>{row.channel}</div></td>
+                        <td className="border border-slate-200 px-3 text-center">{record?.platform || activeConfig.platform}</td>
+                        <td className="border border-slate-200 px-3 text-center"><div>{record?.shippingAccount || activeConfig.shippingAccount}</div><div className="mt-1 truncate text-slate-500" title={record?.service || activeConfig.service}>{record?.service || activeConfig.service}</div></td>
+                        <td className="border border-slate-200 px-3 text-center"><div className="font-mono font-semibold text-blue-600">{record?.trackingNo || '-'}</div><div className="mt-1 font-mono text-slate-400">{record?.createdAt || '-'}</div></td>
+                        <td className="border border-slate-200 px-3 text-center">
+                          {record ? (
+                            <button type="button" onClick={() => addToast(`已打开 ${record.trackingNo} 标签预览`, 'info')} className="font-semibold text-blue-600 hover:underline">打印标签</button>
+                          ) : validationMessage ? (
+                            <button type="button" onClick={() => addToast(`${orderKey}：${validationMessage}`, 'warning')} className="font-semibold text-rose-500 hover:underline">查看异常</button>
+                          ) : (
+                            <button type="button" onClick={() => addToast(`${orderKey} 资料校验通过`, 'success')} className="font-semibold text-blue-600 hover:underline">校验</button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {visibleRows.length === 0 && (
+                    <tr><td colSpan={16} className="h-32 border border-slate-200 text-center text-slate-400">当前筛选条件下暂无{activeLine}子单</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-end gap-5 border-t border-slate-100 px-2 py-3 text-xs text-slate-600">
+              <span>共 {visibleRows.length} 条</span>
+              <select className="h-8 rounded border border-slate-300 bg-white px-3"><option>100条/页</option><option>50条/页</option></select>
+              <button type="button" className="text-slate-300">&lt;</button><span className="font-bold text-blue-500">1</span><button type="button" className="text-slate-300">&gt;</button>
+              <span>前往</span><input value="1" readOnly className="h-8 w-12 rounded border border-slate-300 text-center" /><span>页</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex h-16 shrink-0 items-center justify-between border-t border-slate-200 bg-white px-6">
+          <div className="text-xs text-slate-500">{activeLine}：{lineRows.length} 条，已创建 {activeCreatedCount} 条，待创建 {lineRows.length - activeCreatedCount} 条</div>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => addToast(`${activeLine}配置草稿已保存`, 'success')} className="rounded border border-slate-300 bg-white px-6 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">保存草稿</button>
+            <button type="button" onClick={onClose} className="rounded border border-slate-300 bg-white px-6 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">关闭</button>
+            <button type="button" onClick={createSelectedExpressOrders} className="rounded bg-[#004bb1] px-7 py-2 text-xs font-bold text-white hover:bg-[#003b91]">创建 {selectedCurrentRows.length} 个快递单</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const parseFeeNumber = (value: string | undefined) => Number(String(value || '0').replace(/[^\d.]/g, '')) || 0;
 const getExchangeRate = (currency: string) => (currency === 'USD' || currency === '美元' ? '7.014' : '1');
 const normalizeCurrency = (currency: string) => (currency === 'USD' ? '美元' : currency);
@@ -809,7 +1282,7 @@ const getOrderLogRows = (row: OverseasTransitRow): OrderLogRow[] => [
     operatedAt: row.inboundTime,
     operator: row.merchandiser || '安逸',
     action: '备注维护',
-    field: '客户备注 / 内部备注',
+    field: '客户备注 / 海外仓备注',
     before: '-',
     after: `${row.customerRemark || '-'} / ${row.overseasWarehouseRemark || '-'}`,
     note: '同步客户要求与海外仓操作备注',
@@ -942,12 +1415,15 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
   const [editingOrderFormKey, setEditingOrderFormKey] = useState<string | null>(null);
   const [addressFormSnapshotsByOrder, setAddressFormSnapshotsByOrder] = useState<Record<string, AddressFormState>>({});
   const [downstreamDetailTab, setDownstreamDetailTab] = useState<DownstreamDetailTab>('费用信息');
+  const [expressOrderKeys, setExpressOrderKeys] = useState<string[]>([]);
+  const [expressRecordsByOrder, setExpressRecordsByOrder] = useState<Record<string, ExpressCreationRecord>>({});
   const displayedSeedRows = transitRows.map((row) => ({
     ...row,
     status: statusOverridesByOrder[getOrderKey(row)] || row.status,
     ...lifecycleTimeOverridesByOrder[getOrderKey(row)],
   }));
   const allRows: OverseasTransitRow[] = [...displayedSeedRows, ...createdTransitRows];
+  const expressWorkspaceRows = allRows.filter((row) => expressOrderKeys.includes(getOrderKey(row)) && row.status === '已确认');
   const activeLifecycleTimeConfig = lifecycleTimeConfigByStatus[activeTab];
   const activeLifecycleDateFilter = activeLifecycleTimeConfig
     ? appliedLifecycleDateFilters[activeLifecycleTimeConfig.key]?.trim()
@@ -964,9 +1440,10 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
   const signedRollbackConfirmRows = allRows.filter((row) => signedRollbackConfirmOrderKeys.includes(getOrderKey(row)) && row.status === '签收');
   const usesOrderFormTemplate = (status: string) => orderFormStatuses.has(status);
   const showOverseasWaybillNo = true;
-  const orderTableColumnCount = (showOverseasWaybillNo ? 21 : 17) + (activeLifecycleTimeConfig ? 1 : 0);
+  const showExpressCreationStatus = activeTab === '已确认';
+  const orderTableColumnCount = (showOverseasWaybillNo ? 21 : 17) + (activeLifecycleTimeConfig ? 1 : 0) + (showExpressCreationStatus ? 1 : 0);
   const orderTableMinWidthClass = showOverseasWaybillNo
-    ? (activeLifecycleTimeConfig ? 'min-w-[2920px]' : 'min-w-[2760px]')
+    ? (activeLifecycleTimeConfig ? 'min-w-[2920px]' : showExpressCreationStatus ? 'min-w-[2960px]' : 'min-w-[2760px]')
     : (activeLifecycleTimeConfig ? 'min-w-[2440px]' : 'min-w-[2280px]');
   const commonOrderSearchFields = showOverseasWaybillNo ? fullOrderSearchFields : baseOrderSearchFields;
   const orderSearchFields: OrderSearchField[] = activeLifecycleTimeConfig
@@ -1136,6 +1613,39 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
     const rows = getSelectedCurrentRows();
     if (rows.length === 0) { addToast('请先勾选需要取消下单的已确认子单', 'warning'); return; }
     setCancelConfirmOrderKeys(rows.map(getOrderKey));
+  };
+
+  const openExpressCreationWorkspace = () => {
+    if (activeTab !== '已确认') return;
+    const rows = getSelectedCurrentRows();
+    if (rows.length === 0) {
+      addToast('请先勾选需要创建快递单的已确认子单', 'warning');
+      return;
+    }
+    setExpressOrderKeys(rows.map(getOrderKey));
+    addToast(`已载入 ${rows.length} 条已确认子单，并按目的国家分配至美线或欧线`, 'info');
+  };
+
+  const createExpressOrders = (rowsToCreate: OverseasTransitRow[], line: ExpressLineTab, config: ExpressBatchConfig) => {
+    const createdAt = formatDateTime();
+    const compactTimestamp = createdAt.replace(/\D/g, '').slice(2);
+    setExpressRecordsByOrder((prev) => {
+      const next = { ...prev };
+      rowsToCreate.forEach((row, index) => {
+        const orderKey = getOrderKey(row);
+        const orderSuffix = orderKey.replace(/\D/g, '').slice(-5).padStart(5, '0');
+        next[orderKey] = {
+          line,
+          trackingNo: `${line === '美线打单' ? 'US' : 'EU'}${compactTimestamp}${orderSuffix}${String(index + 1).padStart(2, '0')}`,
+          platform: config.platform,
+          shippingAccount: config.shippingAccount,
+          service: config.service,
+          createdAt,
+        };
+      });
+      return next;
+    });
+    addToast(`已成功创建 ${rowsToCreate.length} 个${line}快递单，中转单仍保留在已确认`, 'success');
   };
 
   const confirmCancelConfirmedOrders = () => {
@@ -1827,6 +2337,15 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
               </button>
               <button
                 type="button"
+                title="勾选已确认子单后，按目的国家进入美线打单或欧线打单"
+                onClick={openExpressCreationWorkspace}
+                className="flex items-center gap-1.5 rounded bg-[#004bb1] px-7 py-2 text-xs font-bold text-white hover:bg-[#003b91]"
+              >
+                <Printer className="h-3.5 w-3.5" />
+                创建快递单
+              </button>
+              <button
+                type="button"
                 title="支持批量下单确定；确认后子单由已确认流转至已下单"
                 onClick={submitConfirmedOrders}
                 className="rounded bg-[#004bb1] px-7 py-2 text-xs font-bold text-white hover:bg-[#003b91]"
@@ -1951,6 +2470,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                 <th className="w-44 border border-slate-200 px-3 py-2 text-center">头程运单号</th>
                 {showOverseasWaybillNo && <th className="w-56 border border-slate-200 px-3 py-2 text-center">海外仓运单号</th>}
                 {showOverseasWaybillNo && <th className="w-36 border border-slate-200 px-3 py-2 text-center">子单创建时间</th>}
+                {showExpressCreationStatus && <th className="w-48 border border-slate-200 px-3 py-2 text-center">快递单状态 / 快递单号</th>}
                 {activeLifecycleTimeConfig && <th className="w-40 border border-slate-200 px-3 py-2 text-center">{activeLifecycleTimeConfig.label}</th>}
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">转单号</th>
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">FBA单号</th>
@@ -1962,7 +2482,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                 {showOverseasWaybillNo && <th className="w-28 border border-slate-200 px-3 py-2 text-center">下单类型</th>}
                 <th className="w-20 border border-slate-200 px-3 py-2 text-center">目的地</th>
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">客户备注</th>
-                <th className="w-36 border border-slate-200 px-3 py-2 text-center">内部备注</th>
+                <th className="w-36 border border-slate-200 px-3 py-2 text-center">海外仓备注</th>
                 <th className="w-24 border border-slate-200 px-3 py-2 text-center">业务员</th>
                 <th className="w-24 border border-slate-200 px-3 py-2 text-center">跟单员</th>
                 <th className="w-24 border border-slate-200 px-3 py-2 text-center">发货件数</th>
@@ -1992,6 +2512,18 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                   <td className="border border-slate-200 px-3 text-center font-mono">{row.id}</td>
                   {showOverseasWaybillNo && <td className="border border-slate-200 px-3 text-center font-mono text-blue-600">{getOverseasWaybillNo(row)}</td>}
                   {showOverseasWaybillNo && <td className="border border-slate-200 px-3 text-center font-mono text-slate-500">{row.childCreatedAt || '-'}</td>}
+                  {showExpressCreationStatus && (
+                    <td className="border border-slate-200 px-3 text-center">
+                      {expressRecordsByOrder[getOrderKey(row)] ? (
+                        <>
+                          <span className="rounded-full bg-emerald-50 px-2 py-1 font-bold text-emerald-600">已创建</span>
+                          <div className="mt-1 font-mono text-[10px] text-blue-600">{expressRecordsByOrder[getOrderKey(row)].trackingNo}</div>
+                        </>
+                      ) : (
+                        <span className="rounded-full bg-amber-50 px-2 py-1 font-bold text-amber-600">待创建</span>
+                      )}
+                    </td>
+                  )}
                   {activeLifecycleTimeConfig && <td className="border border-slate-200 px-3 text-center font-mono text-slate-500">{row[activeLifecycleTimeConfig.key] || '-'}</td>}
                   <td className="border border-slate-200 px-3 text-center font-mono">{row.transferNo || '-'}</td>
                   <td className="border border-slate-200 px-3 text-center font-mono">{row.fbaCode}</td>
@@ -2061,7 +2593,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                       <span>{activeOrder.customerRemark || '-'}</span>
                     </div>
                     <div>
-                      <span className="font-bold text-slate-900">内部备注：</span>
+                      <span className="font-bold text-slate-900">海外仓备注：</span>
                       <span>{activeOrder.overseasWarehouseRemark || '-'}</span>
                     </div>
                   </div>
@@ -2175,16 +2707,8 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                         onChange={(value) => updateAddressField('addressDetail', value)}
                       />
                       <TextareaRow
-                        label="客户备注"
-                        placeholder="请输入客户备注"
-                        limit={`${addressForm.remark.length}/500`}
-                        value={addressForm.remark}
-                        disabled={!isOrderFormEditing}
-                        onChange={(value) => updateAddressField('remark', value)}
-                      />
-                      <TextareaRow
-                        label="内部备注"
-                        placeholder="请输入内部备注"
+                        label="海外仓备注"
+                        placeholder="请输入海外仓备注"
                         limit={`${addressForm.overseasWarehouseRemark.length}/500`}
                         value={addressForm.overseasWarehouseRemark}
                         disabled={!isOrderFormEditing}
@@ -2221,7 +2745,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                       <DetailField label="业务员">{activeOrder.salesman || '-'}</DetailField>
                       <DetailField label="跟单员">{activeOrder.merchandiser || '-'}</DetailField>
                       <DetailField label="客户备注">{activeOrder.customerRemark || '-'}</DetailField>
-                      <DetailField label="内部备注">{activeOrder.overseasWarehouseRemark || '-'}</DetailField>
+                      <DetailField label="海外仓备注">{activeOrder.overseasWarehouseRemark || '-'}</DetailField>
                     </div>
                   </section>
 
@@ -3309,6 +3833,16 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
             </div>
           </div>
         </div>
+      )}
+
+      {expressWorkspaceRows.length > 0 && (
+        <ExpressOrderCreationWorkspace
+          rows={expressWorkspaceRows}
+          records={expressRecordsByOrder}
+          addToast={addToast}
+          onCreate={createExpressOrders}
+          onClose={() => setExpressOrderKeys([])}
+        />
       )}
 
       {cancelConfirmOrderKeys.length > 0 && (
