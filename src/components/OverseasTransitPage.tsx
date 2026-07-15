@@ -424,8 +424,8 @@ const storageExtendedHeaders = [
   '提单号',
   '客户单号',
   '客户简称',
-  '总箱数',
-  '剩余箱数',
+  '运单箱数',
+  '可下单箱数',
   '客户备注',
   '内部备注',
   '入仓时间（海外仓）',
@@ -1102,9 +1102,11 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
           <div className="flex items-center gap-2">
             {isStorageListMode ? (
               <>
-                <button type="button" onClick={() => openDetail()} className="flex w-[90px] items-center justify-center rounded bg-[#0068d9] px-3 py-2 text-xs font-bold text-white hover:bg-[#005ac0]">
-                  下单
-                </button>
+                {activeTab !== '暂存已完成' && (
+                  <button type="button" onClick={() => openDetail()} className="flex w-[90px] items-center justify-center rounded bg-[#0068d9] px-3 py-2 text-xs font-bold text-white hover:bg-[#005ac0]">
+                    下单
+                  </button>
+                )}
                 <button type="button" onClick={() => addToast('正在导出海外暂存数据', 'info')} className="flex w-[90px] items-center justify-center rounded bg-[#0068d9] px-3 py-2 text-xs font-bold text-white hover:bg-[#005ac0]">
                   导出
                 </button>
@@ -1114,9 +1116,11 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
               </>
             ) : (
               <>
-                <button type="button" onClick={() => openDetail()} className="flex w-[90px] items-center justify-center rounded bg-[#0068d9] px-3 py-2 text-xs font-bold text-white hover:bg-[#005ac0]">
-                  下单
-                </button>
+                {activeTab !== '暂存已完成' && (
+                  <button type="button" onClick={() => openDetail()} className="flex w-[90px] items-center justify-center rounded bg-[#0068d9] px-3 py-2 text-xs font-bold text-white hover:bg-[#005ac0]">
+                    下单
+                  </button>
+                )}
                 <button type="button" onClick={() => addToast('正在导出海外中转单', 'info')} className="flex w-[90px] items-center justify-center rounded bg-[#0068d9] px-3 py-2 text-xs font-bold text-white hover:bg-[#005ac0]">
                   导出
                 </button>
@@ -1172,7 +1176,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                     <tr
                       key={row.headWaybillNo}
                       onDoubleClick={() => openDetail(row)}
-                      title="双击打开中转下单"
+                      title={row.status === '暂存已完成' ? '双击查看暂存已完成详情' : '双击打开中转下单'}
                       className={'group cursor-pointer text-slate-700 transition-colors hover:bg-blue-50/50 ' + (
                         isStorageListMode
                           ? 'h-12 ' + (isExpanded && childOrders.length > 0 ? 'bg-blue-50/60' : 'bg-white')
@@ -1367,8 +1371,8 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                     <DrawerReadonlyField label="客户单号">{activeStorageOrder.customerOrderNo || '-'}</DrawerReadonlyField>
                     <DrawerReadonlyField label="客户简称">{activeStorageOrder.customer}</DrawerReadonlyField>
                     <DrawerReadonlyField label="状态">{activeStorageOrder.status}</DrawerReadonlyField>
-                    <DrawerReadonlyField label="总箱数">{activeStorageOrder.totalCount}</DrawerReadonlyField>
-                    <DrawerReadonlyField label="剩余箱数">{getRemainingBoxCount(activeStorageOrder)}</DrawerReadonlyField>
+                    <DrawerReadonlyField label="运单箱数">{activeStorageOrder.totalCount}</DrawerReadonlyField>
+                    <DrawerReadonlyField label="可下单箱数">{getRemainingBoxCount(activeStorageOrder)}</DrawerReadonlyField>
                     <DrawerReadonlyField label="服务" className="col-span-2">{activeStorageOrder.service}</DrawerReadonlyField>
                     <DrawerReadonlyField label="入仓时间">{activeStorageOrder.inboundAt}</DrawerReadonlyField>
                     <DrawerReadonlyField label="仓租时间">{activeStorageOrder.warehouseAt}</DrawerReadonlyField>

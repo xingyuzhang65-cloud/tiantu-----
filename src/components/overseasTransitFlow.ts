@@ -26,6 +26,9 @@ export type CreatedTransitChildOrder = {
   transferNo: string;
   containerNo?: string;
   billOfLadingNo?: string;
+  orderedAt?: string;
+  outboundAt?: string;
+  signedAt?: string;
   customerRemark: string;
   overseasWarehouseRemark: string;
   warehouseCode: string;
@@ -45,6 +48,13 @@ const createdTransitChildOrders: CreatedTransitChildOrder[] = [];
 const removedStorageBoxCounts: Record<string, number> = {};
 const removedStorageBoxNumbers: Record<string, string[]> = {};
 const listeners = new Set<() => void>();
+
+const getCurrentFlowDateTime = () => {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()) + ' '
+    + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+};
 
 export const getCreatedTransitChildOrders = () => [...createdTransitChildOrders];
 
@@ -106,6 +116,9 @@ export const markCreatedTransitChildOrdersAsOrdered = (orderIds: string[]) => {
   createdTransitChildOrders.forEach((order) => {
     if (idSet.has(order.id) && order.status === '已确认') {
       order.status = '已下单';
+      order.orderedAt = getCurrentFlowDateTime();
+      order.outboundAt = undefined;
+      order.signedAt = undefined;
       changed = true;
     }
   });
@@ -119,6 +132,9 @@ export const rollbackCreatedTransitChildOrdersToConfirmed = (orderIds: string[])
   createdTransitChildOrders.forEach((order) => {
     if (idSet.has(order.id) && order.status === '已下单') {
       order.status = '已确认';
+      order.orderedAt = undefined;
+      order.outboundAt = undefined;
+      order.signedAt = undefined;
       changed = true;
     }
   });
@@ -133,6 +149,8 @@ export const shipCreatedTransitChildOrders = (orderIds: string[]) => {
   createdTransitChildOrders.forEach((order) => {
     if (idSet.has(order.id) && order.status === '已下单') {
       order.status = '转运中';
+      order.outboundAt = getCurrentFlowDateTime();
+      order.signedAt = undefined;
       changed = true;
     }
   });
@@ -146,6 +164,7 @@ export const signCreatedTransitChildOrders = (orderIds: string[]) => {
   createdTransitChildOrders.forEach((order) => {
     if (idSet.has(order.id) && order.status === '转运中') {
       order.status = '签收';
+      order.signedAt = getCurrentFlowDateTime();
       changed = true;
     }
   });
@@ -160,6 +179,8 @@ export const rollbackCreatedTransitChildOrdersToOrdered = (orderIds: string[]) =
   createdTransitChildOrders.forEach((order) => {
     if (idSet.has(order.id) && order.status === '转运中') {
       order.status = '已下单';
+      order.outboundAt = undefined;
+      order.signedAt = undefined;
       changed = true;
     }
   });
@@ -173,6 +194,7 @@ export const rollbackSignedCreatedTransitChildOrdersToTransit = (orderIds: strin
   createdTransitChildOrders.forEach((order) => {
     if (idSet.has(order.id) && order.status === '签收') {
       order.status = '转运中';
+      order.signedAt = undefined;
       changed = true;
     }
   });

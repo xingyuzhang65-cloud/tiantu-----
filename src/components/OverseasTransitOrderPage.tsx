@@ -31,6 +31,9 @@ interface OverseasTransitRow {
   transferNo?: string;
   containerNo?: string;
   billOfLadingNo?: string;
+  orderedAt?: string;
+  outboundAt?: string;
+  signedAt?: string;
   customerRemark?: string;
   overseasWarehouseRemark?: string;
   warehouseCode?: string;
@@ -64,6 +67,17 @@ const getMockContainerNo = (source: string) =>
 
 const getMockBillOfLadingNo = (source: string) =>
   'TTBL' + source.replace(/\D/g, '').slice(-10).padStart(10, '0');
+
+const shiftMockDateTime = (value: string, hours: number) => {
+  const normalized = value.length === 16 ? `${value.replace(' ', 'T')}:00` : value.replace(' ', 'T');
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return value;
+
+  date.setHours(date.getHours() + hours);
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
+
 const seedTransitRows: OverseasTransitRow[] = [
   {
     id: 'YT2507100001',
@@ -436,22 +450,41 @@ const transitRows: OverseasTransitRow[] = [
     const existingCount = seedTransitRows.filter((row) => row.status === status).length;
     return Array.from({ length: Math.max(0, 10 - existingCount) }, (_, index) => makeMockTransitRow(status, existingCount + index));
   }),
-].map((row) => ({
-  ...row,
-  containerNo: row.containerNo || getMockContainerNo(row.id),
-  billOfLadingNo: row.billOfLadingNo || getMockBillOfLadingNo(row.id),
-}));
+].map((row) => {
+  const hasOrdered = row.status === '已下单' || row.status === '转运中' || row.status === '签收';
+  const hasOutbound = row.status === '转运中' || row.status === '签收';
+  const hasSigned = row.status === '签收';
+
+  return {
+    ...row,
+    containerNo: row.containerNo || getMockContainerNo(row.id),
+    billOfLadingNo: row.billOfLadingNo || getMockBillOfLadingNo(row.id),
+    orderedAt: row.orderedAt || (hasOrdered ? shiftMockDateTime(row.childCreatedAt || row.inboundTime, 2) : undefined),
+    outboundAt: row.outboundAt || (hasOutbound ? shiftMockDateTime(row.childCreatedAt || row.inboundTime, 6) : undefined),
+    signedAt: row.signedAt || (hasSigned ? shiftMockDateTime(row.childCreatedAt || row.inboundTime, 30) : undefined),
+  };
+});
 
 const fieldClass =
   'h-8 w-full rounded border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-500';
 const labelClass = 'w-28 shrink-0 text-right text-xs font-bold text-slate-900';
 const required = <span className="text-red-500">* </span>;
 
+type LifecycleTimeKey = 'orderedAt' | 'outboundAt' | 'signedAt';
+type LifecycleTimeValues = Partial<Record<LifecycleTimeKey, string | undefined>>;
+
 type OrderSearchField = {
   label: string;
-  type: 'input' | 'select';
+  type: 'input' | 'select' | 'date';
   placeholder?: string;
   options?: string[];
+  searchKey?: LifecycleTimeKey;
+};
+
+const lifecycleTimeConfigByStatus: Partial<Record<string, { label: string; key: LifecycleTimeKey }>> = {
+  已下单: { label: '下单时间', key: 'orderedAt' },
+  转运中: { label: '出仓时间', key: 'outboundAt' },
+  签收: { label: '签收时间', key: 'signedAt' },
 };
 
 const orderSearchControlClass = `${fieldClass} min-w-0 flex-1`;
@@ -477,7 +510,7 @@ const fullOrderSearchFields: OrderSearchField[] = [
   { label: '提单号', type: 'input', placeholder: '支持批量' },
   { label: '客户简称', type: 'select', options: ['深圳天图电子有限公司', '博创跨境贸易', '广州跨境供应链'] },
   { label: '仓库代码', type: 'select', options: overseasWarehouseCodes },
-  { label: '运单类型', type: 'select', options: overseasOrderTypes },
+  { label: '下单类型', type: 'select', options: overseasOrderTypes },
   { label: '业务员', type: 'select', options: ['安一', '天朗'] },
   { label: '跟单员', type: 'select', options: ['安逸', '李客服'] },
   { label: '入仓时间', type: 'select', options: ['今日', '本周', '本月'] },
@@ -875,6 +908,9 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
   const [selectedIds, setSelectedIds] = useState<string[]>(['YT2507100001_0710_1', 'YT2507100002_0710_1', 'YT2507100004_0711_1']);
   const [createdTransitRows, setCreatedTransitRows] = useState<CreatedTransitChildOrder[]>(getCreatedTransitChildOrders);
   const [statusOverridesByOrder, setStatusOverridesByOrder] = useState<Record<string, string>>({});
+  const [lifecycleTimeOverridesByOrder, setLifecycleTimeOverridesByOrder] = useState<Record<string, LifecycleTimeValues>>({});
+  const [searchValues, setSearchValues] = useState<Record<string, string>>({});
+  const [appliedLifecycleDateFilters, setAppliedLifecycleDateFilters] = useState<LifecycleTimeValues>({});
   const [activeOrder, setActiveOrder] = useState<OverseasTransitRow | null>(null);
   const [activeLogOrder, setActiveLogOrder] = useState<OverseasTransitRow | null>(null);
   const [cancelConfirmOrderKeys, setCancelConfirmOrderKeys] = useState<string[]>([]);
@@ -906,17 +942,36 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
   const [editingOrderFormKey, setEditingOrderFormKey] = useState<string | null>(null);
   const [addressFormSnapshotsByOrder, setAddressFormSnapshotsByOrder] = useState<Record<string, AddressFormState>>({});
   const [downstreamDetailTab, setDownstreamDetailTab] = useState<DownstreamDetailTab>('费用信息');
-  const displayedSeedRows = transitRows.map((row) => ({ ...row, status: statusOverridesByOrder[getOrderKey(row)] || row.status }));
+  const displayedSeedRows = transitRows.map((row) => ({
+    ...row,
+    status: statusOverridesByOrder[getOrderKey(row)] || row.status,
+    ...lifecycleTimeOverridesByOrder[getOrderKey(row)],
+  }));
   const allRows: OverseasTransitRow[] = [...displayedSeedRows, ...createdTransitRows];
-  const filteredRows = allRows.filter((row) => row.status === activeTab);
+  const activeLifecycleTimeConfig = lifecycleTimeConfigByStatus[activeTab];
+  const activeLifecycleDateFilter = activeLifecycleTimeConfig
+    ? appliedLifecycleDateFilters[activeLifecycleTimeConfig.key]?.trim()
+    : '';
+  const filteredRows = allRows.filter((row) => (
+    row.status === activeTab
+    && (!activeLifecycleTimeConfig
+      || !activeLifecycleDateFilter
+      || row[activeLifecycleTimeConfig.key]?.slice(0, 10) === activeLifecycleDateFilter)
+  ));
   const cancelConfirmRows = allRows.filter((row) => cancelConfirmOrderKeys.includes(getOrderKey(row)) && row.status === '已确认');
   const rollbackConfirmRows = allRows.filter((row) => rollbackConfirmOrderKeys.includes(getOrderKey(row)) && row.status === '已下单');
   const transitRollbackConfirmRows = allRows.filter((row) => transitRollbackConfirmOrderKeys.includes(getOrderKey(row)) && row.status === '转运中');
   const signedRollbackConfirmRows = allRows.filter((row) => signedRollbackConfirmOrderKeys.includes(getOrderKey(row)) && row.status === '签收');
   const usesOrderFormTemplate = (status: string) => orderFormStatuses.has(status);
   const showOverseasWaybillNo = true;
-  const orderTableColumnCount = showOverseasWaybillNo ? 21 : 17;
-  const orderSearchFields = showOverseasWaybillNo ? fullOrderSearchFields : baseOrderSearchFields;
+  const orderTableColumnCount = (showOverseasWaybillNo ? 21 : 17) + (activeLifecycleTimeConfig ? 1 : 0);
+  const orderTableMinWidthClass = showOverseasWaybillNo
+    ? (activeLifecycleTimeConfig ? 'min-w-[2920px]' : 'min-w-[2760px]')
+    : (activeLifecycleTimeConfig ? 'min-w-[2440px]' : 'min-w-[2280px]');
+  const commonOrderSearchFields = showOverseasWaybillNo ? fullOrderSearchFields : baseOrderSearchFields;
+  const orderSearchFields: OrderSearchField[] = activeLifecycleTimeConfig
+    ? [...commonOrderSearchFields, { label: activeLifecycleTimeConfig.label, type: 'date', searchKey: activeLifecycleTimeConfig.key }]
+    : commonOrderSearchFields;
   const quoteEditableStatuses = new Set(['已确认', '已下单', '转运中', '签收']);
   const activeOrderKey = activeOrder ? getOrderKey(activeOrder) : '';
   const addressForm = activeOrder ? (addressFormsByOrder[activeOrderKey] || getParentStorageAddressForm(activeOrder)) : emptyAddressForm;
@@ -996,6 +1051,32 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
   };
 
   const getSelectedCurrentRows = () => filteredRows.filter((row) => selectedIds.includes(getOrderKey(row)));
+
+  const updateSeedLifecycleTimes = (orderKeys: string[], updates: LifecycleTimeValues) => {
+    if (orderKeys.length === 0) return;
+    setLifecycleTimeOverridesByOrder((prev) => {
+      const next = { ...prev };
+      orderKeys.forEach((orderKey) => {
+        next[orderKey] = { ...(next[orderKey] || {}), ...updates };
+      });
+      return next;
+    });
+  };
+
+  const applyOrderSearch = () => {
+    setAppliedLifecycleDateFilters({
+      orderedAt: searchValues.orderedAt || undefined,
+      outboundAt: searchValues.outboundAt || undefined,
+      signedAt: searchValues.signedAt || undefined,
+    });
+    addToast('已查询海外中转单数据', 'success');
+  };
+
+  const resetOrderSearch = () => {
+    setSearchValues({});
+    setAppliedLifecycleDateFilters({});
+    addToast('已重置筛选条件', 'info');
+  };
 
   const clearSelectedCurrentRows = (rows: OverseasTransitRow[]) => {
     const currentKeys = new Set(rows.map(getOrderKey));
@@ -1089,6 +1170,11 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
     if (createdOrderIds.length > 0) markCreatedTransitChildOrdersAsOrdered(createdOrderIds);
     if (seedOrderKeys.length > 0) {
       setStatusOverridesByOrder((prev) => seedOrderKeys.reduce((next, key) => ({ ...next, [key]: '已下单' }), { ...prev }));
+      updateSeedLifecycleTimes(seedOrderKeys, {
+        orderedAt: formatDateTime(),
+        outboundAt: undefined,
+        signedAt: undefined,
+      });
     }
 
     clearSelectedCurrentRows(rows);
@@ -1115,6 +1201,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
     if (createdOrderIds.length > 0) rollbackCreatedTransitChildOrdersToConfirmed(createdOrderIds);
     if (seedOrderKeys.length > 0) {
       setStatusOverridesByOrder((prev) => seedOrderKeys.reduce((next, key) => ({ ...next, [key]: '已确认' }), { ...prev }));
+      updateSeedLifecycleTimes(seedOrderKeys, { orderedAt: undefined, outboundAt: undefined, signedAt: undefined });
     }
 
     clearSelectedCurrentRows(rows);
@@ -1133,6 +1220,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
     if (createdOrderIds.length > 0) shipCreatedTransitChildOrders(createdOrderIds);
     if (seedOrderKeys.length > 0) {
       setStatusOverridesByOrder((prev) => seedOrderKeys.reduce((next, key) => ({ ...next, [key]: '转运中' }), { ...prev }));
+      updateSeedLifecycleTimes(seedOrderKeys, { outboundAt: formatDateTime(), signedAt: undefined });
     }
 
     clearSelectedCurrentRows(rows);
@@ -1149,6 +1237,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
     if (createdOrderIds.length > 0) signCreatedTransitChildOrders(createdOrderIds);
     if (seedOrderKeys.length > 0) {
       setStatusOverridesByOrder((prev) => seedOrderKeys.reduce((next, key) => ({ ...next, [key]: '签收' }), { ...prev }));
+      updateSeedLifecycleTimes(seedOrderKeys, { signedAt: formatDateTime() });
     }
 
     clearSelectedCurrentRows(rows);
@@ -1176,6 +1265,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
     if (createdOrderIds.length > 0) rollbackCreatedTransitChildOrdersToOrdered(createdOrderIds);
     if (seedOrderKeys.length > 0) {
       setStatusOverridesByOrder((prev) => seedOrderKeys.reduce((next, key) => ({ ...next, [key]: '已下单' }), { ...prev }));
+      updateSeedLifecycleTimes(seedOrderKeys, { outboundAt: undefined, signedAt: undefined });
     }
 
     clearSelectedCurrentRows(rows);
@@ -1203,6 +1293,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
     if (createdOrderIds.length > 0) rollbackSignedCreatedTransitChildOrdersToTransit(createdOrderIds);
     if (seedOrderKeys.length > 0) {
       setStatusOverridesByOrder((prev) => seedOrderKeys.reduce((next, key) => ({ ...next, [key]: '转运中' }), { ...prev }));
+      updateSeedLifecycleTimes(seedOrderKeys, { signedAt: undefined });
     }
 
     clearSelectedCurrentRows(rows);
@@ -1643,27 +1734,40 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
     <div className="relative flex-1 overflow-auto bg-slate-100 p-4 font-sans text-slate-700 max-h-[calc(100vh-3rem)]">
       <div className="mb-3 rounded-md border border-slate-200 bg-white p-4 shadow-sm">
         <div className="grid grid-cols-1 items-center gap-x-5 gap-y-4 text-xs md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 [@media(min-width:1800px)]:grid-cols-5">
-          {orderSearchFields.map((field) => (
-            <label key={field.label} className="flex min-w-0 items-center gap-3">
-              <span className={orderSearchLabelClass}>{field.label}</span>
-              {field.type === 'select' ? (
-                <select className={orderSearchControlClass} defaultValue="">
-                  <option value="">请选择</option>
-                  {field.options?.map((option) => (
-                    <option key={option}>{option}</option>
-                  ))}
-                </select>
-              ) : (
-                <input className={orderSearchControlClass} placeholder={field.placeholder || '请输入'} />
-              )}
-            </label>
-          ))}
+          {orderSearchFields.map((field) => {
+            const searchKey = field.searchKey || field.label;
+            return (
+              <label key={field.label} className="flex min-w-0 items-center gap-3">
+                <span className={orderSearchLabelClass}>{field.label}</span>
+                {field.type === 'select' ? (
+                  <select
+                    className={orderSearchControlClass}
+                    value={searchValues[searchKey] || ''}
+                    onChange={(event) => setSearchValues((prev) => ({ ...prev, [searchKey]: event.target.value }))}
+                  >
+                    <option value="">请选择</option>
+                    {field.options?.map((option) => (
+                      <option key={option}>{option}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type={field.type === 'date' ? 'date' : 'text'}
+                    className={orderSearchControlClass}
+                    value={searchValues[searchKey] || ''}
+                    placeholder={field.type === 'date' ? undefined : (field.placeholder || '请输入')}
+                    onChange={(event) => setSearchValues((prev) => ({ ...prev, [searchKey]: event.target.value }))}
+                  />
+                )}
+              </label>
+            );
+          })}
           <div className="flex min-w-0 items-center gap-2 pl-[140px]">
-            <button type="button" onClick={() => addToast('已查询海外中转单数据', 'success')} className="flex h-8 min-w-20 items-center justify-center gap-1 rounded bg-[#004bb1] px-4 text-xs font-bold text-white hover:bg-[#003b91]">
+            <button type="button" onClick={applyOrderSearch} className="flex h-8 min-w-20 items-center justify-center gap-1 rounded bg-[#004bb1] px-4 text-xs font-bold text-white hover:bg-[#003b91]">
               <Search className="h-3.5 w-3.5" />
               搜索
             </button>
-            <button type="button" onClick={() => addToast('已重置筛选条件', 'info')} className="h-8 min-w-20 rounded border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+            <button type="button" onClick={resetOrderSearch} className="h-8 min-w-20 rounded border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-600 hover:bg-slate-50">
               重置
             </button>
           </div>
@@ -1838,7 +1942,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
         </div>
 
         <div className="overflow-x-auto border border-slate-200">
-          <table className={`w-full ${showOverseasWaybillNo ? 'min-w-[2760px]' : 'min-w-[2280px]'} table-fixed border-collapse text-[11px]`}>
+          <table className={`w-full ${orderTableMinWidthClass} table-fixed border-collapse text-[11px]`}>
             <thead className="bg-slate-50 text-slate-700">
               <tr>
                 <th className="w-10 border border-slate-200 px-2 py-2 text-center">
@@ -1847,6 +1951,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                 <th className="w-44 border border-slate-200 px-3 py-2 text-center">头程运单号</th>
                 {showOverseasWaybillNo && <th className="w-56 border border-slate-200 px-3 py-2 text-center">海外仓运单号</th>}
                 {showOverseasWaybillNo && <th className="w-36 border border-slate-200 px-3 py-2 text-center">子单创建时间</th>}
+                {activeLifecycleTimeConfig && <th className="w-40 border border-slate-200 px-3 py-2 text-center">{activeLifecycleTimeConfig.label}</th>}
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">转单号</th>
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">FBA单号</th>
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">柜号</th>
@@ -1854,7 +1959,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                 <th className="w-44 border border-slate-200 px-3 py-2 text-center">客户简称</th>
                 <th className="w-28 border border-slate-200 px-3 py-2 text-center">仓库代码</th>
                 {showOverseasWaybillNo && <th className="w-24 border border-slate-200 px-3 py-2 text-center">邮编</th>}
-                {showOverseasWaybillNo && <th className="w-28 border border-slate-200 px-3 py-2 text-center">运单类型</th>}
+                {showOverseasWaybillNo && <th className="w-28 border border-slate-200 px-3 py-2 text-center">下单类型</th>}
                 <th className="w-20 border border-slate-200 px-3 py-2 text-center">目的地</th>
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">客户备注</th>
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">内部备注</th>
@@ -1887,6 +1992,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                   <td className="border border-slate-200 px-3 text-center font-mono">{row.id}</td>
                   {showOverseasWaybillNo && <td className="border border-slate-200 px-3 text-center font-mono text-blue-600">{getOverseasWaybillNo(row)}</td>}
                   {showOverseasWaybillNo && <td className="border border-slate-200 px-3 text-center font-mono text-slate-500">{row.childCreatedAt || '-'}</td>}
+                  {activeLifecycleTimeConfig && <td className="border border-slate-200 px-3 text-center font-mono text-slate-500">{row[activeLifecycleTimeConfig.key] || '-'}</td>}
                   <td className="border border-slate-200 px-3 text-center font-mono">{row.transferNo || '-'}</td>
                   <td className="border border-slate-200 px-3 text-center font-mono">{row.fbaCode}</td>
                   <td className="border border-slate-200 px-3 text-center font-mono">{row.containerNo || '-'}</td>
@@ -1973,7 +2079,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                       )}
                     </div>
                     <div className="grid grid-cols-2 gap-x-16 gap-y-4">
-                      <FormRow label="运单类型" requiredMark>
+                      <FormRow label="下单类型" requiredMark>
                         <select
                           className={fieldClass}
                           value={addressForm.orderType}
@@ -2096,7 +2202,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                       <DetailField label="海外仓运单号" highlight>{getOverseasWaybillNo(activeOrder)}</DetailField>
                       <DetailField label="客户简称">{activeOrder.customerName}</DetailField>
                       <DetailField label="目的地">{activeOrder.destination}</DetailField>
-                      <DetailField label="运单类型">{activeOrder.orderType || '-'}</DetailField>
+                      <DetailField label="下单类型">{activeOrder.orderType || '-'}</DetailField>
                       <DetailField label="仓库代码">{activeOrder.warehouseCode || '-'}</DetailField>
                       <DetailField label="FBA单号">{activeOrder.fbaCode}</DetailField>
                       <DetailField label="柜号">{activeOrder.containerNo || '-'}</DetailField>
