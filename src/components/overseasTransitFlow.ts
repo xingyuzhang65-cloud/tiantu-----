@@ -24,6 +24,8 @@ export type CreatedTransitChildOrder = {
   childCreatedAt: string;
   orderSeq: number;
   transferNo: string;
+  containerNo?: string;
+  billOfLadingNo?: string;
   customerRemark: string;
   overseasWarehouseRemark: string;
   warehouseCode: string;
