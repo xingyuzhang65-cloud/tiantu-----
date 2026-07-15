@@ -789,6 +789,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
     if (!activeStorageOrder || !activeStorageOrderKey || !isStorageSubmissionStatus) return;
     const boxNumbers = activeStorageSelectedBoxIndexes.map(getStorageBoxNumber).filter(Boolean);
     if (boxNumbers.length === 0) { addToast('请先勾选需要提交的箱号', 'warning'); return; }
+    if (!storageAddressForm.scheduledShippingTime) { addToast('请选择预约发货时间', 'warning'); return; }
     if (!storageAddressForm.orderType || !storageAddressForm.warehouseCode || !storageAddressForm.zipCode || !storageAddressForm.city || !storageAddressForm.addressDetail) { addToast('请先填写完整的收件地址信息', 'warning'); return; }
     const orderSeq = getCreatedTransitChildOrders().filter((item) => item.parentHeadWaybillNo === activeStorageOrderKey).length + 1;
     const now = formatLocalDateTime();
@@ -1429,6 +1430,15 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                         value={storageAddressForm.addressDetail}
                         onChange={(value) => updateStorageAddressField('addressDetail', value)}
                       />
+                      <DrawerFormRow label='预约发货时间' required>
+                        <input
+                          type='datetime-local'
+                          className={drawerFieldClass}
+                          required
+                          value={storageAddressForm.scheduledShippingTime}
+                          onChange={(event) => updateStorageAddressField('scheduledShippingTime', event.target.value)}
+                        />
+                      </DrawerFormRow>
                       <DrawerTextareaRow
                         label="海外仓备注"
                         placeholder="请输入海外仓备注"

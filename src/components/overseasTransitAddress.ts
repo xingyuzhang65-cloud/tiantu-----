@@ -7,6 +7,7 @@ export interface AddressFormState {
   city: string;
   state: string;
   company: string;
+  scheduledShippingTime: string;
   addressDetail: string;
   remark: string;
   overseasWarehouseRemark: string;
@@ -25,6 +26,7 @@ export const emptyAddressForm: AddressFormState = {
   city: '',
   state: '',
   company: '',
+  scheduledShippingTime: '',
   addressDetail: '',
   remark: '',
   overseasWarehouseRemark: '',
@@ -32,7 +34,7 @@ export const emptyAddressForm: AddressFormState = {
 
 export const warehouseAddressBook: Record<
   string,
-  Omit<AddressFormState, 'orderType' | 'warehouseCode' | 'phone' | 'company' | 'remark' | 'overseasWarehouseRemark'>
+  Omit<AddressFormState, 'orderType' | 'warehouseCode' | 'phone' | 'company' | 'scheduledShippingTime' | 'remark' | 'overseasWarehouseRemark'>
 > = {
   PSC2: {
     zipCode: '99301',
