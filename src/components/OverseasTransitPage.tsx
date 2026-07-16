@@ -70,6 +70,8 @@ interface OverseasTransitRow {
   transferNo?: string;
   containerNo?: string;
   billOfLadingNo?: string;
+  inboundNo?: string;
+  shipmentId?: string;
   referenceId?: string;
   warehouseCode?: string;
   chargeWeight?: string;
@@ -133,6 +135,18 @@ const getMockContainerNo = (source: string) =>
 
 const getMockBillOfLadingNo = (source: string) =>
   'TTBL' + source.replace(/\D/g, '').slice(-10).padStart(10, '0');
+
+const getMockStorageIdentifierSerial = (source: string) =>
+  source.replace(/\D/g, '').slice(-10).padStart(10, '0');
+
+const getMockInboundNo = (source: string) =>
+  'INB' + getMockStorageIdentifierSerial(source);
+
+const getMockShipmentId = (source: string) =>
+  'SHP' + getMockStorageIdentifierSerial(source);
+
+const getMockReferenceId = (source: string) =>
+  'REF-FBA-' + getMockStorageIdentifierSerial(source).slice(-5);
 const seedTransitRows: OverseasTransitRow[] = [
   {
     headWaybillNo: 'USSZAS2508261001',
@@ -343,6 +357,9 @@ const transitRows: OverseasTransitRow[] = [
   ...row,
   containerNo: row.containerNo || getMockContainerNo(row.headWaybillNo),
   billOfLadingNo: row.billOfLadingNo || getMockBillOfLadingNo(row.headWaybillNo),
+  inboundNo: row.inboundNo || getMockInboundNo(row.headWaybillNo),
+  shipmentId: row.shipmentId || getMockShipmentId(row.headWaybillNo),
+  referenceId: row.referenceId || getMockReferenceId(row.headWaybillNo),
 }));
 
 const getTransitRowsWithRemovedBoxes = () => transitRows.map((row) => {
@@ -406,11 +423,26 @@ const drawerLabelClass = 'w-28 shrink-0 text-right text-xs font-bold text-slate-
 
 const requiredMark = <span className="text-red-500">* </span>;
 
+type StorageIdentifierSearchKey = 'inboundNo' | 'shipmentId' | 'referenceId';
+
 type SearchField = {
   label: string;
   type: 'input' | 'select';
   placeholder?: string;
   options?: string[];
+  searchKey?: StorageIdentifierSearchKey;
+};
+
+const storageIdentifierSearchKeys: StorageIdentifierSearchKey[] = ['inboundNo', 'shipmentId', 'referenceId'];
+const emptyStorageIdentifierSearchValues: Record<StorageIdentifierSearchKey, string> = {
+  inboundNo: '',
+  shipmentId: '',
+  referenceId: '',
+};
+
+const matchesStorageIdentifierQuery = (value: string | undefined, query: string) => {
+  const normalizedQuery = query.trim().toLowerCase();
+  return !normalizedQuery || (value || '').toLowerCase().includes(normalizedQuery);
 };
 
 
@@ -420,6 +452,9 @@ const storageExtendedHeaders = [
   'FBA单号',
   '柜号',
   '提单号',
+  '入仓号',
+  'Shipment ID',
+  'Reference ID',
   '客户单号',
   '客户简称',
   '运单箱数',
@@ -440,7 +475,8 @@ const storageExtendedHeaders = [
   '方数',
   '邮编',
 ];
-const transportationHiddenStorageHeaders = new Set(['入仓时间（海外仓）', '仓租时间', '库龄']);
+const storageIdentifierHeaders = new Set(['入仓号', 'Shipment ID', 'Reference ID']);
+const transportationHiddenStorageHeaders = new Set(['入仓号', '入仓时间（海外仓）', '仓租时间', '库龄']);
 
 const overseasSearchFields: SearchField[] = [
   { label: '头程运单号', type: 'input', placeholder: '支持批量' },
@@ -464,6 +500,9 @@ const storageSearchFields: SearchField[] = [
   { label: 'FBA单号', type: 'input', placeholder: '支持批量' },
   { label: '柜号', type: 'input', placeholder: '支持批量' },
   { label: '提单号', type: 'input', placeholder: '支持批量' },
+  { label: '入仓号', type: 'input', placeholder: '支持单个/模糊查询', searchKey: 'inboundNo' },
+  { label: 'Shipment ID', type: 'input', placeholder: '支持单个/模糊查询', searchKey: 'shipmentId' },
+  { label: 'Reference ID', type: 'input', placeholder: '支持单个/模糊查询', searchKey: 'referenceId' },
   { label: '客户单号', type: 'input', placeholder: '支持批量' },
   { label: '客户简称', type: 'select', options: ['阿里巴巴', '腾讯科技', '华为技术', '深圳天图电子有限公司'] },
   { label: '服务', type: 'select', options: ['美森15日达-快递派', '美森15日达-卡派包税', '美线海卡'] },
@@ -692,6 +731,8 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
   const [activeStorageOrder, setActiveStorageOrder] = useState<OverseasTransitRow | null>(null);
   const [activeLogOrder, setActiveLogOrder] = useState<OverseasTransitRow | null>(null);
   const [pageTransitRows, setPageTransitRows] = useState<OverseasTransitRow[]>(getTransitRowsWithRemovedBoxes);
+  const [storageIdentifierSearchValues, setStorageIdentifierSearchValues] = useState<Record<StorageIdentifierSearchKey, string>>({ ...emptyStorageIdentifierSearchValues });
+  const [appliedStorageIdentifierFilters, setAppliedStorageIdentifierFilters] = useState<Record<StorageIdentifierSearchKey, string>>({ ...emptyStorageIdentifierSearchValues });
   const [selectedStorageBoxIndexesByOrder, setSelectedStorageBoxIndexesByOrder] = useState<Record<string, number[]>>({});
   const [storageAddressForm, setStorageAddressForm] = useState<AddressFormState>({ ...emptyAddressForm });
   const [storageInstructionRowsByOrder, setStorageInstructionRowsByOrder] = useState<Record<string, StorageInstructionRow[]>>({});
@@ -713,20 +754,34 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
     const rows = mode === 'storage'
       ? pageTransitRows.filter((row) => storageTransitTabs.includes(row.status))
       : pageTransitRows;
-    return activeTab === '全部' ? rows : rows.filter((row) => row.status === activeTab);
-  }, [activeTab, mode, pageTransitRows]);
+    const statusRows = activeTab === '全部' ? rows : rows.filter((row) => row.status === activeTab);
+    return statusRows.filter((row) => storageIdentifierSearchKeys.every((key) => (
+      matchesStorageIdentifierQuery(row[key], appliedStorageIdentifierFilters[key])
+    )));
+  }, [activeTab, appliedStorageIdentifierFilters, mode, pageTransitRows]);
   const isStorageListMode = mode === 'storage';
   const hideStorageTimingColumns = isStorageListMode && activeTab === '运输中';
   const visibleTableHeaders = isStorageListMode
     ? storageExtendedHeaders.filter((header) => !hideStorageTimingColumns || !transportationHiddenStorageHeaders.has(header))
     : tableHeaders;
-  const storageTableMinWidthClass = hideStorageTimingColumns ? 'min-w-[2750px]' : 'min-w-[3150px]';
+  const storageTableMinWidthClass = hideStorageTimingColumns ? 'min-w-[3070px]' : 'min-w-[3630px]';
 
   const getTabCount = (tab: TransitStatus) => {
     const scopedRows = mode === 'storage'
       ? pageTransitRows.filter((row) => storageTransitTabs.includes(row.status))
       : pageTransitRows;
     return scopedRows.filter((row) => row.status === tab).length;
+  };
+
+  const applyStorageSearch = () => {
+    setAppliedStorageIdentifierFilters({ ...storageIdentifierSearchValues });
+    addToast(searchToastText, 'success');
+  };
+
+  const resetStorageSearch = () => {
+    setStorageIdentifierSearchValues({ ...emptyStorageIdentifierSearchValues });
+    setAppliedStorageIdentifierFilters({ ...emptyStorageIdentifierSearchValues });
+    addToast('已重置筛选条件', 'info');
   };
 
   const openDetail = (row?: OverseasTransitRow) => {
@@ -807,6 +862,9 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
       transferNo: '',
       containerNo: activeStorageOrder.containerNo || '',
       billOfLadingNo: activeStorageOrder.billOfLadingNo || '',
+      inboundNo: activeStorageOrder.inboundNo || '',
+      shipmentId: activeStorageOrder.shipmentId || '',
+      referenceId: activeStorageOrder.referenceId || '',
       customerRemark: storageAddressForm.remark,
       overseasWarehouseRemark: storageAddressForm.overseasWarehouseRemark,
       warehouseCode: storageAddressForm.warehouseCode,
@@ -1060,16 +1118,23 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                     <option key={option}>{option}</option>
                   ))}
                 </select>
+              ) : field.searchKey ? (
+                <input
+                  className={searchControlClass}
+                  value={storageIdentifierSearchValues[field.searchKey]}
+                  placeholder={field.placeholder || '请输入'}
+                  onChange={(event) => setStorageIdentifierSearchValues((prev) => ({ ...prev, [field.searchKey!]: event.target.value }))}
+                />
               ) : (
                 <input className={searchControlClass} placeholder={field.placeholder || '请输入'} />
               )}
             </label>
           ))}
           <div className="flex min-w-0 items-center gap-2 pl-[92px]">
-            <button type="button" onClick={() => addToast(searchToastText, 'success')} className="flex h-8 min-w-20 items-center justify-center rounded bg-[#0068d9] px-4 text-xs font-bold text-white shadow-sm hover:bg-[#005ac0]">
+            <button type="button" onClick={applyStorageSearch} className="flex h-8 min-w-20 items-center justify-center rounded bg-[#0068d9] px-4 text-xs font-bold text-white shadow-sm hover:bg-[#005ac0]">
               搜索
             </button>
-            <button type="button" onClick={() => addToast('已重置筛选条件', 'info')} className="h-8 min-w-20 rounded border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+            <button type="button" onClick={resetStorageSearch} className="h-8 min-w-20 rounded border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-600 hover:bg-slate-50">
               重置
             </button>
           </div>
@@ -1135,7 +1200,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
               <colgroup>
                 <col style={{ width: '40px' }} />
                 {visibleTableHeaders.map((head, index) => (
-                  <col key={'storage-col-' + index + '-' + head} style={{ width: index === 0 ? '184px' : index === 1 ? '156px' : index === 2 ? '128px' : index === 3 ? '156px' : '130px' }} />
+                  <col key={'storage-col-' + index + '-' + head} style={{ width: index === 0 ? '184px' : index === 1 ? '156px' : index === 2 ? '128px' : index === 3 ? '156px' : storageIdentifierHeaders.has(head) ? '160px' : '130px' }} />
                 ))}
               </colgroup>
             )}
@@ -1181,6 +1246,11 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                           </td>
                           <td className="border border-slate-300 px-2 text-center font-mono">{row.containerNo || '-'}</td>
                           <td className="border border-slate-300 px-2 text-center font-mono">{row.billOfLadingNo || '-'}</td>
+                          {!hideStorageTimingColumns && (
+                            <td className="border border-slate-300 px-2 text-center font-mono">{row.inboundNo || '-'}</td>
+                          )}
+                          <td className="border border-slate-300 px-2 text-center font-mono">{row.shipmentId || '-'}</td>
+                          <td className="border border-slate-300 px-2 text-center font-mono">{row.referenceId || '-'}</td>
                           <td className="border border-slate-300 px-3 text-center">{row.customerOrderNo}</td>
                           <td className="border border-slate-300 px-3 text-center">{row.customer}</td>
                           <td className="border border-slate-300 px-3 text-right tabular-nums">{row.totalCount}</td>
@@ -1274,6 +1344,9 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                     <DrawerReadonlyField label="FBA单号">{activeStorageOrder.fbaNo || '-'}</DrawerReadonlyField>
                     <DrawerReadonlyField label="柜号">{activeStorageOrder.containerNo || '-'}</DrawerReadonlyField>
                     <DrawerReadonlyField label="提单号">{activeStorageOrder.billOfLadingNo || '-'}</DrawerReadonlyField>
+                    <DrawerReadonlyField label="入仓号">{activeStorageOrder.inboundNo || '-'}</DrawerReadonlyField>
+                    <DrawerReadonlyField label="Shipment ID">{activeStorageOrder.shipmentId || '-'}</DrawerReadonlyField>
+                    <DrawerReadonlyField label="Reference ID">{activeStorageOrder.referenceId || '-'}</DrawerReadonlyField>
                     <DrawerReadonlyField label="客户单号">{activeStorageOrder.customerOrderNo || '-'}</DrawerReadonlyField>
                     <DrawerReadonlyField label="客户简称">{activeStorageOrder.customer}</DrawerReadonlyField>
                     <DrawerReadonlyField label="状态">{activeStorageOrder.status}</DrawerReadonlyField>
@@ -1303,6 +1376,20 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                   <div>
                     <span className="font-bold text-slate-900">提单号：</span>
                     <span className="font-mono">{activeStorageOrder.billOfLadingNo || '-'}</span>
+                  </div>
+                  {activeStorageOrder.status !== '运输中' && (
+                    <div>
+                      <span className="font-bold text-slate-900">入仓号：</span>
+                      <span className="font-mono">{activeStorageOrder.inboundNo || '-'}</span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="font-bold text-slate-900">Shipment ID：</span>
+                    <span className="font-mono">{activeStorageOrder.shipmentId || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-900">Reference ID：</span>
+                    <span className="font-mono">{activeStorageOrder.referenceId || '-'}</span>
                   </div>
                   <div>
                     <span className="font-bold text-slate-900">目的地：</span>

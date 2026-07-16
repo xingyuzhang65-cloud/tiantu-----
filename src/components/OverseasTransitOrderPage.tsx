@@ -33,6 +33,9 @@ interface OverseasTransitRow {
   transferNo?: string;
   containerNo?: string;
   billOfLadingNo?: string;
+  inboundNo?: string;
+  shipmentId?: string;
+  referenceId?: string;
   orderedAt?: string;
   outboundAt?: string;
   signedAt?: string;
@@ -69,6 +72,20 @@ const getMockContainerNo = (source: string) =>
 
 const getMockBillOfLadingNo = (source: string) =>
   'TTBL' + source.replace(/\D/g, '').slice(-10).padStart(10, '0');
+
+const getMockIdentifierSerial = (source: string, createdAt: string | undefined, orderSeq = 1) =>
+  source.replace(/\D/g, '').slice(-6).padStart(6, '0')
+  + String(createdAt || '').replace(/\D/g, '').slice(-8).padStart(8, '0')
+  + String(orderSeq).padStart(2, '0');
+
+const getMockInboundNo = (source: string, createdAt: string | undefined, orderSeq = 1) =>
+  'INB' + getMockIdentifierSerial(source, createdAt, orderSeq);
+
+const getMockShipmentId = (source: string, createdAt: string | undefined, orderSeq = 1) =>
+  'SHP' + getMockIdentifierSerial(source, createdAt, orderSeq);
+
+const getMockReferenceId = (source: string, createdAt: string | undefined, orderSeq = 1) =>
+  'REF-FBA-' + getMockIdentifierSerial(source, createdAt, orderSeq);
 
 const shiftMockDateTime = (value: string, hours: number) => {
   const normalized = value.length === 16 ? `${value.replace(' ', 'T')}:00` : value.replace(' ', 'T');
@@ -535,6 +552,9 @@ const transitRows: OverseasTransitRow[] = [
     ...row,
     containerNo: row.containerNo || getMockContainerNo(row.id),
     billOfLadingNo: row.billOfLadingNo || getMockBillOfLadingNo(row.id),
+    inboundNo: row.inboundNo || getMockInboundNo(row.id, row.childCreatedAt || row.inboundTime, row.orderSeq),
+    shipmentId: row.shipmentId || getMockShipmentId(row.id, row.childCreatedAt || row.inboundTime, row.orderSeq),
+    referenceId: row.referenceId || getMockReferenceId(row.id, row.childCreatedAt || row.inboundTime, row.orderSeq),
     orderedAt: row.orderedAt || (hasOrdered ? shiftMockDateTime(row.childCreatedAt || row.inboundTime, 2) : undefined),
     outboundAt: row.outboundAt || (hasOutbound ? shiftMockDateTime(row.childCreatedAt || row.inboundTime, 6) : undefined),
     signedAt: row.signedAt || (hasSigned ? shiftMockDateTime(row.childCreatedAt || row.inboundTime, 30) : undefined),
@@ -572,12 +592,26 @@ type ExpressCreationRecord = {
   createdAt: string;
 };
 
+type IdentifierSearchKey = 'inboundNo' | 'shipmentId' | 'referenceId';
+
 type OrderSearchField = {
   label: string;
   type: 'input' | 'select' | 'date';
   placeholder?: string;
   options?: string[];
-  searchKey?: LifecycleTimeKey;
+  searchKey?: LifecycleTimeKey | IdentifierSearchKey;
+};
+
+const identifierSearchKeys: IdentifierSearchKey[] = ['inboundNo', 'shipmentId', 'referenceId'];
+const emptyIdentifierSearchValues: Record<IdentifierSearchKey, string> = {
+  inboundNo: '',
+  shipmentId: '',
+  referenceId: '',
+};
+
+const matchesIdentifierQuery = (value: string | undefined, query: string) => {
+  const normalizedQuery = query.trim().toLowerCase();
+  return !normalizedQuery || (value || '').toLowerCase().includes(normalizedQuery);
 };
 
 const lifecycleTimeConfigByStatus: Partial<Record<string, { label: string; key: LifecycleTimeKey }>> = {
@@ -594,6 +628,9 @@ const baseOrderSearchFields: OrderSearchField[] = [
   { label: 'FBA单号', type: 'input', placeholder: '支持批量' },
   { label: '柜号', type: 'input', placeholder: '支持批量' },
   { label: '提单号', type: 'input', placeholder: '支持批量' },
+  { label: '入仓号', type: 'input', placeholder: '支持单个/模糊查询', searchKey: 'inboundNo' },
+  { label: 'Shipment ID', type: 'input', placeholder: '支持单个/模糊查询', searchKey: 'shipmentId' },
+  { label: 'Reference ID', type: 'input', placeholder: '支持单个/模糊查询', searchKey: 'referenceId' },
   { label: '客户简称', type: 'select', options: ['深圳天图电子有限公司', '博创跨境贸易', '广州跨境供应链'] },
   { label: '仓库代码', type: 'select', options: overseasWarehouseCodes },
   { label: '业务员', type: 'select', options: ['安一', '天朗'] },
@@ -607,6 +644,9 @@ const fullOrderSearchFields: OrderSearchField[] = [
   { label: 'FBA单号', type: 'input', placeholder: '支持批量' },
   { label: '柜号', type: 'input', placeholder: '支持批量' },
   { label: '提单号', type: 'input', placeholder: '支持批量' },
+  { label: '入仓号', type: 'input', placeholder: '支持单个/模糊查询', searchKey: 'inboundNo' },
+  { label: 'Shipment ID', type: 'input', placeholder: '支持单个/模糊查询', searchKey: 'shipmentId' },
+  { label: 'Reference ID', type: 'input', placeholder: '支持单个/模糊查询', searchKey: 'referenceId' },
   { label: '客户简称', type: 'select', options: ['深圳天图电子有限公司', '博创跨境贸易', '广州跨境供应链'] },
   { label: '仓库代码', type: 'select', options: overseasWarehouseCodes },
   { label: '下单类型', type: 'select', options: overseasOrderTypes },
@@ -1417,6 +1457,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
   const [lifecycleTimeOverridesByOrder, setLifecycleTimeOverridesByOrder] = useState<Record<string, LifecycleTimeValues>>({});
   const [searchValues, setSearchValues] = useState<Record<string, string>>({});
   const [appliedLifecycleDateFilters, setAppliedLifecycleDateFilters] = useState<LifecycleTimeValues>({});
+  const [appliedIdentifierFilters, setAppliedIdentifierFilters] = useState<Record<IdentifierSearchKey, string>>({ ...emptyIdentifierSearchValues });
   const [activeOrder, setActiveOrder] = useState<OverseasTransitRow | null>(null);
   const [activeLogOrder, setActiveLogOrder] = useState<OverseasTransitRow | null>(null);
   const [cancelConfirmOrderKeys, setCancelConfirmOrderKeys] = useState<string[]>([]);
@@ -1466,6 +1507,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
     && (!activeLifecycleTimeConfig
       || !activeLifecycleDateFilter
       || row[activeLifecycleTimeConfig.key]?.slice(0, 10) === activeLifecycleDateFilter)
+    && identifierSearchKeys.every((key) => matchesIdentifierQuery(row[key], appliedIdentifierFilters[key]))
   ));
   const cancelConfirmRows = allRows.filter((row) => cancelConfirmOrderKeys.includes(getOrderKey(row)) && row.status === '已确认');
   const rollbackConfirmRows = allRows.filter((row) => rollbackConfirmOrderKeys.includes(getOrderKey(row)) && row.status === '已下单');
@@ -1474,10 +1516,10 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
   const usesOrderFormTemplate = (status: string) => orderFormStatuses.has(status);
   const showOverseasWaybillNo = true;
   const showExpressCreationStatus = activeTab === '已确认';
-  const orderTableColumnCount = (showOverseasWaybillNo ? 21 : 17) + (activeLifecycleTimeConfig ? 1 : 0) + (showExpressCreationStatus ? 1 : 0) + 1;
+  const orderTableColumnCount = (showOverseasWaybillNo ? 21 : 17) + (activeLifecycleTimeConfig ? 1 : 0) + (showExpressCreationStatus ? 1 : 0) + 4;
   const orderTableMinWidthClass = showOverseasWaybillNo
-    ? (activeLifecycleTimeConfig ? 'min-w-[3200px]' : showExpressCreationStatus ? 'min-w-[3240px]' : 'min-w-[3040px]')
-    : (activeLifecycleTimeConfig ? 'min-w-[2720px]' : 'min-w-[2560px]');
+    ? (activeLifecycleTimeConfig ? 'min-w-[3680px]' : showExpressCreationStatus ? 'min-w-[3720px]' : 'min-w-[3520px]')
+    : (activeLifecycleTimeConfig ? 'min-w-[3200px]' : 'min-w-[3040px]');
   const commonOrderSearchFields = showOverseasWaybillNo ? fullOrderSearchFields : baseOrderSearchFields;
   const orderSearchFields: OrderSearchField[] = activeLifecycleTimeConfig
     ? [...commonOrderSearchFields, { label: activeLifecycleTimeConfig.label, type: 'date', searchKey: activeLifecycleTimeConfig.key }]
@@ -1581,12 +1623,18 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
       outboundAt: searchValues.outboundAt || undefined,
       signedAt: searchValues.signedAt || undefined,
     });
+    setAppliedIdentifierFilters({
+      inboundNo: searchValues.inboundNo?.trim() || '',
+      shipmentId: searchValues.shipmentId?.trim() || '',
+      referenceId: searchValues.referenceId?.trim() || '',
+    });
     addToast('已查询海外中转单数据', 'success');
   };
 
   const resetOrderSearch = () => {
     setSearchValues({});
     setAppliedLifecycleDateFilters({});
+    setAppliedIdentifierFilters({ ...emptyIdentifierSearchValues });
     addToast('已重置筛选条件', 'info');
   };
 
@@ -2551,6 +2599,9 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                 {activeLifecycleTimeConfig && <th className="w-40 border border-slate-200 px-3 py-2 text-center">{activeLifecycleTimeConfig.label}</th>}
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">转单号</th>
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">FBA单号</th>
+                <th className="w-40 border border-slate-200 px-3 py-2 text-center">入仓号</th>
+                <th className="w-40 border border-slate-200 px-3 py-2 text-center">Shipment ID</th>
+                <th className="w-40 border border-slate-200 px-3 py-2 text-center">Reference ID</th>
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">柜号</th>
                 <th className="w-40 border border-slate-200 px-3 py-2 text-center">提单号</th>
                 <th className="w-44 border border-slate-200 px-3 py-2 text-center">客户简称</th>
@@ -2605,6 +2656,9 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                   {activeLifecycleTimeConfig && <td className="border border-slate-200 px-3 text-center font-mono text-slate-500">{row[activeLifecycleTimeConfig.key] || '-'}</td>}
                   <td className="border border-slate-200 px-3 text-center font-mono">{row.transferNo || '-'}</td>
                   <td className="border border-slate-200 px-3 text-center font-mono">{row.fbaCode}</td>
+                  <td className="border border-slate-200 px-3 text-center font-mono">{row.inboundNo || '-'}</td>
+                  <td className="border border-slate-200 px-3 text-center font-mono">{row.shipmentId || '-'}</td>
+                  <td className="border border-slate-200 px-3 text-center font-mono">{row.referenceId || '-'}</td>
                   <td className="border border-slate-200 px-3 text-center font-mono">{row.containerNo || '-'}</td>
                   <td className="border border-slate-200 px-3 text-center font-mono">{row.billOfLadingNo || '-'}</td>
                   <td className="truncate border border-slate-200 px-3 text-center">{row.customerName}</td>
@@ -2654,6 +2708,18 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                     <div>
                       <span className="font-bold text-blue-600">海外仓运单号：</span>
                       <span className="font-mono text-blue-600">{getOverseasWaybillNo(activeOrder)}</span>
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-900">入仓号：</span>
+                      <span className="font-mono">{activeOrder.inboundNo || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-900">Shipment ID：</span>
+                      <span className="font-mono">{activeOrder.shipmentId || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-900">Reference ID：</span>
+                      <span className="font-mono">{activeOrder.referenceId || '-'}</span>
                     </div>
                     <div>
                       <span className="font-bold text-slate-900">柜号：</span>
@@ -2818,6 +2884,9 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                       <DetailField label="下单类型">{activeOrder.orderType || '-'}</DetailField>
                       <DetailField label="仓库代码">{activeOrder.warehouseCode || '-'}</DetailField>
                       <DetailField label="FBA单号">{activeOrder.fbaCode}</DetailField>
+                      <DetailField label="入仓号">{activeOrder.inboundNo || '-'}</DetailField>
+                      <DetailField label="Shipment ID">{activeOrder.shipmentId || '-'}</DetailField>
+                      <DetailField label="Reference ID">{activeOrder.referenceId || '-'}</DetailField>
                       <DetailField label="柜号">{activeOrder.containerNo || '-'}</DetailField>
                       <DetailField label="提单号">{activeOrder.billOfLadingNo || '-'}</DetailField>
                       <DetailField label="发货件数">{activeOrder.packages}</DetailField>
