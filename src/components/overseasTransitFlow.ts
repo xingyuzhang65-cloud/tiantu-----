@@ -73,6 +73,18 @@ export const submitStorageBoxesAsTransitChild = (order: CreatedTransitChildOrder
   removedStorageBoxNumbers[order.parentHeadWaybillNo] = [...(removedStorageBoxNumbers[order.parentHeadWaybillNo] || []), ...order.boxNumbers];
   listeners.forEach((listener) => listener());
 };
+
+export const updateCreatedTransitChildOrderInstructions = (
+  orderId: string,
+  instructions: CreatedTransitInstruction[],
+) => {
+  const order = createdTransitChildOrders.find((item) => item.id === orderId);
+  if (!order) return;
+
+  order.instructions = instructions.map((instruction) => ({ ...instruction }));
+  listeners.forEach((listener) => listener());
+};
+
 export const confirmCreatedTransitChildOrders = (orderIds: string[]) => {
   const idSet = new Set(orderIds);
   let changed = false;

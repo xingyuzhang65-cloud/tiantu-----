@@ -13,7 +13,7 @@ import {
   warehouseAddressBook,
 } from './overseasTransitAddress';
 import type { AddressFormState } from './overseasTransitAddress';
-import { cancelCreatedTransitChildOrders, confirmCreatedTransitChildOrders, getCreatedTransitChildOrders, markCreatedTransitChildOrdersAsOrdered, rollbackCreatedTransitChildOrdersToConfirmed, rollbackCreatedTransitChildOrdersToOrdered, rollbackSignedCreatedTransitChildOrdersToTransit, shipCreatedTransitChildOrders, signCreatedTransitChildOrders, subscribeOverseasTransitFlow } from './overseasTransitFlow';
+import { cancelCreatedTransitChildOrders, confirmCreatedTransitChildOrders, getCreatedTransitChildOrders, markCreatedTransitChildOrdersAsOrdered, rollbackCreatedTransitChildOrdersToConfirmed, rollbackCreatedTransitChildOrdersToOrdered, rollbackSignedCreatedTransitChildOrdersToTransit, shipCreatedTransitChildOrders, signCreatedTransitChildOrders, subscribeOverseasTransitFlow, updateCreatedTransitChildOrderInstructions } from './overseasTransitFlow';
 import type { CreatedTransitChildOrder, CreatedTransitInstruction } from './overseasTransitFlow';
 
 interface OverseasTransitOrderPageProps {
@@ -692,6 +692,8 @@ const attachmentRows = [
 
 type InstructionFeeRow = (typeof instructionFeeRows)[number] & {
   quantity?: string;
+  addedAt?: string;
+  addedBy?: string;
 };
 type QuoteFeeRow = (typeof quoteFeeRows)[number];
 type AttachmentRow = (typeof attachmentRows)[number];
@@ -1227,6 +1229,37 @@ function ExpressOrderCreationWorkspace({
 }
 
 const parseFeeNumber = (value: string | undefined) => Number(String(value || '0').replace(/[^\d.]/g, '')) || 0;
+const formatInstructionFeeAmount = (value: number) => Number(value.toFixed(2)).toString();
+const formatInstructionFeeCurrency = (currency: string) => {
+  const normalized = currency.trim().toUpperCase();
+  if (currency === '人民币' || normalized === 'RMB' || normalized === 'CNY') return 'CNY';
+  if (currency === '美元' || normalized === 'USD') return 'USD';
+  return normalized || 'CNY';
+};
+const formatInstructionFee = (row: InstructionFeeRow) => {
+  const quantity = row.quantity?.trim() ? parseFeeNumber(row.quantity) : 1;
+  const total = parseFeeNumber(row.price) * quantity;
+  return formatInstructionFeeAmount(total) + ' ' + formatInstructionFeeCurrency(row.currency) + ' ' + row.name + ' (' + row.price + '/' + row.unit + ')';
+};
+
+function InstructionFeeCell({ rows }: { rows: InstructionFeeRow[] }) {
+  return (
+    <td className='border border-slate-200 px-3 py-1.5 align-top text-left'>
+      {rows.length > 0 ? (
+        <div className='space-y-0.5 text-orange-500'>
+          {rows.map((row) => (
+            <div key={row.code} className='whitespace-nowrap leading-5'>
+              {formatInstructionFee(row)}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <span className='block text-center text-slate-400'>-</span>
+      )}
+    </td>
+  );
+}
+
 const getExchangeRate = (currency: string) => (currency === 'USD' || currency === '美元' ? '7.014' : '1');
 const normalizeCurrency = (currency: string) => (currency === 'USD' ? '美元' : currency);
 const getQuoteAmount = (row: Pick<QuoteFeeRow, 'price' | 'quantity' | 'exchangeRate'>) => {
@@ -1441,10 +1474,10 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
   const usesOrderFormTemplate = (status: string) => orderFormStatuses.has(status);
   const showOverseasWaybillNo = true;
   const showExpressCreationStatus = activeTab === '已确认';
-  const orderTableColumnCount = (showOverseasWaybillNo ? 21 : 17) + (activeLifecycleTimeConfig ? 1 : 0) + (showExpressCreationStatus ? 1 : 0);
+  const orderTableColumnCount = (showOverseasWaybillNo ? 21 : 17) + (activeLifecycleTimeConfig ? 1 : 0) + (showExpressCreationStatus ? 1 : 0) + 1;
   const orderTableMinWidthClass = showOverseasWaybillNo
-    ? (activeLifecycleTimeConfig ? 'min-w-[2920px]' : showExpressCreationStatus ? 'min-w-[2960px]' : 'min-w-[2760px]')
-    : (activeLifecycleTimeConfig ? 'min-w-[2440px]' : 'min-w-[2280px]');
+    ? (activeLifecycleTimeConfig ? 'min-w-[3200px]' : showExpressCreationStatus ? 'min-w-[3240px]' : 'min-w-[3040px]')
+    : (activeLifecycleTimeConfig ? 'min-w-[2720px]' : 'min-w-[2560px]');
   const commonOrderSearchFields = showOverseasWaybillNo ? fullOrderSearchFields : baseOrderSearchFields;
   const orderSearchFields: OrderSearchField[] = activeLifecycleTimeConfig
     ? [...commonOrderSearchFields, { label: activeLifecycleTimeConfig.label, type: 'date', searchKey: activeLifecycleTimeConfig.key }]
@@ -1453,7 +1486,9 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
   const activeOrderKey = activeOrder ? getOrderKey(activeOrder) : '';
   const addressForm = activeOrder ? (addressFormsByOrder[activeOrderKey] || getParentStorageAddressForm(activeOrder)) : emptyAddressForm;
   const isOrderFormEditing = !!activeOrder && usesOrderFormTemplate(activeOrder.status) && editingOrderFormKey === activeOrderKey;
-  const activeInstructionRows = activeOrder ? (instructionRowsByOrder[activeOrderKey] || activeOrder.instructions || []) : [];
+  const getInstructionRowsForOrder = (row: OverseasTransitRow): InstructionFeeRow[] =>
+    instructionRowsByOrder[getOrderKey(row)] ?? row.instructions ?? [];
+  const activeInstructionRows = activeOrder ? getInstructionRowsForOrder(activeOrder) : [];
   const activeQuoteRows = activeOrder ? (quoteRowsByOrder[activeOrderKey] || quoteFeeRows) : [];
   const canEditQuoteFees = !!activeOrder && quoteEditableStatuses.has(activeOrder.status);
   const activeAttachmentRows = activeOrder ? (attachmentRowsByOrder[activeOrderKey] || attachmentRows) : [];
@@ -1824,10 +1859,32 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
     setSelectedFeeCodes((prev) => (prev.includes(code) ? prev.filter((item) => item !== code) : [...prev, code]));
   };
 
+  const setOrderInstructionRows = (row: OverseasTransitRow, rows: InstructionFeeRow[]) => {
+    const timestamp = formatDateTime();
+    const normalizedRows: CreatedTransitInstruction[] = rows.map((instruction) => ({
+      ...instruction,
+      quantity: instruction.quantity || '1',
+      addedAt: instruction.addedAt || timestamp,
+      addedBy: instruction.addedBy || '天朗（付豪）',
+    }));
+    setInstructionRowsByOrder((prev) => ({
+      ...prev,
+      [getOrderKey(row)]: normalizedRows,
+    }));
+    if (isCreatedTransitChildOrder(row)) {
+      updateCreatedTransitChildOrderInstructions(row.id, normalizedRows);
+    }
+  };
+
   const confirmInstructionFees = () => {
     const selectedFees = instructionFeeRows
       .filter((row) => selectedFeeCodes.includes(row.code))
-      .map((row) => ({ ...row, quantity: '1' }));
+      .map((row) => ({
+        ...row,
+        quantity: '1',
+        addedAt: formatDateTime(),
+        addedBy: '天朗（付豪）',
+      }));
     if (feeModalTarget === 'quote') {
       if (!activeOrder) return;
       const orderKey = getOrderKey(activeOrder);
@@ -1852,7 +1909,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
     }
     if (activeOrder) {
       const orderKey = getOrderKey(activeOrder);
-      setInstructionRowsByOrder((prev) => ({ ...prev, [orderKey]: selectedFees }));
+      setOrderInstructionRows(activeOrder, selectedFees);
 
       if (activeOrder.status === '已确认') {
         const existingRows = quoteRowsByOrder[orderKey] || quoteFeeRows;
@@ -1878,14 +1935,24 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
 
   const saveEditingInstruction = () => {
     if (!editingInstruction) return;
-    if (activeOrder) setInstructionRowsByOrder((prev) => ({ ...prev, [getOrderKey(activeOrder)]: (prev[getOrderKey(activeOrder)] || activeInstructionRows).map((row) => (row.code === editingInstruction.code ? editingInstruction : row)) }));
+    if (activeOrder) {
+      setOrderInstructionRows(
+        activeOrder,
+        getInstructionRowsForOrder(activeOrder).map((row) => (row.code === editingInstruction.code ? editingInstruction : row)),
+      );
+    }
     setEditingInstruction(null);
     addToast('操作指令已更新', 'success');
   };
 
   const confirmDeleteInstruction = () => {
     if (!deletingInstruction) return;
-    if (activeOrder) setInstructionRowsByOrder((prev) => ({ ...prev, [getOrderKey(activeOrder)]: (prev[getOrderKey(activeOrder)] || activeInstructionRows).filter((item) => item.code !== deletingInstruction.code) }));
+    if (activeOrder) {
+      setOrderInstructionRows(
+        activeOrder,
+        getInstructionRowsForOrder(activeOrder).filter((item) => item.code !== deletingInstruction.code),
+      );
+    }
     setDeletingInstruction(null);
     addToast('操作指令已删除', 'info');
   };
@@ -2491,6 +2558,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                 {showOverseasWaybillNo && <th className="w-24 border border-slate-200 px-3 py-2 text-center">邮编</th>}
                 {showOverseasWaybillNo && <th className="w-28 border border-slate-200 px-3 py-2 text-center">下单类型</th>}
                 <th className="w-20 border border-slate-200 px-3 py-2 text-center">目的地</th>
+                <th className="w-72 border border-slate-200 px-3 py-2 text-center">指令费用</th>
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">客户备注</th>
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">海外仓备注</th>
                 <th className="w-24 border border-slate-200 px-3 py-2 text-center">业务员</th>
@@ -2544,6 +2612,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                   {showOverseasWaybillNo && <td className="border border-slate-200 px-3 text-center font-mono">{row.zipCode || '-'}</td>}
                   {showOverseasWaybillNo && <td className="border border-slate-200 px-3 text-center">{row.orderType || '-'}</td>}
                   <td className="border border-slate-200 px-3 text-center">{row.destination}</td>
+                  <InstructionFeeCell rows={getInstructionRowsForOrder(row)} />
                   <td className="truncate border border-slate-200 px-3 text-center">{row.customerRemark || '-'}</td>
                   <td className="truncate border border-slate-200 px-3 text-center">{row.overseasWarehouseRemark || '-'}</td>
                   <td className="border border-slate-200 px-3 text-center">{row.salesman || '-'}</td>
@@ -3177,9 +3246,9 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                           <td className="border border-slate-200 px-3 text-center">{row.price}</td>
                           <td className="border border-slate-200 px-3 text-center">{row.quantity || '1'}</td>
                           <td className="border border-slate-200 px-3 text-center">{row.currency}</td>
-                          <td className="border border-slate-200 px-3 text-center">{Number(row.price || 0) * Number(row.quantity || 1)}</td>
-                          <td className="border border-slate-200 px-3 text-center">2026-07-08 18:30:00</td>
-                          <td className="border border-slate-200 px-3 text-center">天朗（付豪）</td>
+                          <td className="border border-slate-200 px-3 text-center">{formatInstructionFeeAmount(parseFeeNumber(row.price) * (row.quantity?.trim() ? parseFeeNumber(row.quantity) : 1))}</td>
+                          <td className="border border-slate-200 px-3 text-center">{row.addedAt || '-'}</td>
+                          <td className="border border-slate-200 px-3 text-center">{row.addedBy || '-'}</td>
                           <td className="border border-slate-200 px-3 text-center">{row.description}</td>
                           <td className="border border-slate-200 px-3 text-center">
                             <button
