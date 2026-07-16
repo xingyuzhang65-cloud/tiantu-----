@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>循环柜预警</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <link rel="stylesheet" href="styles.css?v=20260706-update-time" />
+    <style>
+      .customer-status-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 64px; height: 22px; padding: 0 8px; border-radius: 3px; font-weight: 700; font-size: 11px; background: #e6f7e6; color: #2d8a2d; }
+      .customer-status-badge.paused { background: #fff4d6; color: #9a6a00; }
+      .customer-status-badge.inactive { background: #fde8e8; color: #b33a3a; }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <nav class="sidebar" aria-label="主导航">
+        <div class="brand">
+          <span class="brand-mark">MW</span>
+          <span class="brand-name">美仓海外仓系统</span>
+        </div>
+
+        <div class="nav-menu">
+          <button class="menu-button" type="button">
+            <span class="menu-icon" aria-hidden="true">▣</span>
+            <span>货件管理</span>
+            <span class="menu-caret" aria-hidden="true">⌄</span>
+          </button>
+          <button class="menu-button muted" type="button">
+            <span class="menu-icon" aria-hidden="true">☷</span>
+            <span>出运计划</span>
+            <span class="menu-caret" aria-hidden="true">⌄</span>
+          </button>
+          <button class="menu-button" type="button">
+            <span class="menu-icon" aria-hidden="true">▣</span>
+            <span>入库管理</span>
+            <span class="menu-caret" aria-hidden="true">⌄</span>
+          </button>
+          <div class="submenu">
+            <button class="submenu-button" type="button">
+              <span class="submenu-icon" aria-hidden="true">▧</span>
+              <span>预报单</span>
+            </button>
+            <button class="submenu-button" type="button">
+              <span class="submenu-icon" aria-hidden="true">▧</span>
+              <span>运单管理</span>
+            </button>
+          </div>
+          <button class="menu-button active-parent" type="button" aria-expanded="true">
+            <span class="menu-icon" aria-hidden="true">▣</span>
+            <span>客户管理</span>
+            <span class="menu-caret" aria-hidden="true">⌃</span>
+          </button>
+          <div class="submenu open">
+            <button class="tab-button active" data-tab="overview" type="button">
+              <span class="tab-icon" aria-hidden="true">▦</span>
+              <span>循环柜预警</span>
+            </button>
+            <button class="tab-button" data-tab="warning-dashboard" type="button">
+              <span class="tab-icon" aria-hidden="true">▥</span>
+              <span>循环柜预警看板</span>
+            </button>
+          </div>
+          <button class="menu-button" type="button">
+            <span class="menu-icon" aria-hidden="true">♙</span>
+            <span>库内管理</span>
+            <span class="menu-caret" aria-hidden="true">⌄</span>
+          </button>
+          <button class="menu-button" type="button">
+            <span class="menu-icon" aria-hidden="true">♙</span>
+            <span>出库管理</span>
+            <span class="menu-caret" aria-hidden="true">⌄</span>
+          </button>
+          <button class="menu-button" type="button">
+            <span class="menu-icon" aria-hidden="true">⌂</span>
+            <span>仓库管理</span>
+            <span class="menu-caret" aria-hidden="true">⌄</span>
+          </button>
+          <button class="menu-button" type="button">
+            <span class="menu-icon" aria-hidden="true">♙</span>
+            <span>数据报表</span>
+            <span class="menu-caret" aria-hidden="true">⌄</span>
+          </button>
+          <button class="menu-button" type="button">
+            <span class="menu-icon" aria-hidden="true">▤</span>
+            <span>单据管理</span>
+            <span class="menu-caret" aria-hidden="true">⌄</span>
+          </button>
+          <button class="menu-button" type="button">
+            <span class="menu-icon" aria-hidden="true">▣</span>
+            <span>财务管理</span>
+            <span class="menu-caret" aria-hidden="true">⌄</span>
+          </button>
+          <button class="menu-button" type="button">
+            <span class="menu-icon" aria-hidden="true">⚙</span>
+            <span>系统设置</span>
+            <span class="menu-caret" aria-hidden="true">⌄</span>
+          </button>
+          <button class="menu-button" type="button">
+            <span class="menu-icon" aria-hidden="true">?</span>
+            <span>询价报价管理</span>
+            <span class="menu-caret" aria-hidden="true">⌄</span>
+          </button>
+          <button class="menu-button" type="button">
+            <span class="menu-icon" aria-hidden="true">♙</span>
+            <span>报价询价</span>
+            <span class="menu-caret" aria-hidden="true">⌄</span>
+          </button>
+        </div>
+        <button class="sidebar-collapse" type="button" aria-label="收起侧栏">‹</button>
+      </nav>
+
+      <main class="page-shell" id="tab-overview">
+        <section class="board-panel" aria-label="循环柜预警">
+          <div class="board-header">
+            <div>
+              <h1>循环柜预警</h1>
+            </div>
+          </div>
+
+          <div class="board-filters">
+            <label class="field field-filter">
+              <span>客户简称</span>
+              <select id="overviewCustomerSearch">
+                <option value=""></option>
+              </select>
+            </label>
+            <label class="field field-filter">
+              <span>业务员</span>
+              <select id="overviewSalespersonSearch">
+                <option value=""></option>
+              </select>
+            </label>
+            <label class="field field-filter">
+              <span>客户状态</span>
+              <select id="overviewCustomerStatusSearch">
+                <option value=""></option>
+              </select>
+            </label>
+            <label class="field field-range">
+              <span>开户时间</span>
+              <div class="range-box" id="codeCreateTimeBox">
+                <input class="range-display" id="codeCreateTimeDisplay" type="text" placeholder="全部" readonly autocomplete="off" />
+                <button class="range-clear" id="codeCreateTimeClear" type="button" title="清除">✕</button>
+                <div class="range-drop" hidden>
+                  <div class="range-drop-row">
+                    <input id="codeCreateTimeFrom" type="datetime-local" />
+                    <span>—</span>
+                    <input id="codeCreateTimeTo" type="datetime-local" />
+                  </div>
+                </div>
+              </div>
+            </label>
+            <label class="field field-range">
+              <span>最近预报时间</span>
+              <div class="range-box" id="latestTimeBox">
+                <input class="range-display" id="latestTimeDisplay" type="text" placeholder="全部" readonly autocomplete="off" />
+                <button class="range-clear" id="latestTimeClear" type="button" title="清除">✕</button>
+                <div class="range-drop" hidden>
+                  <div class="range-drop-row">
+                    <input id="latestTimeFrom" type="datetime-local" />
+                    <span>—</span>
+                    <input id="latestTimeTo" type="datetime-local" />
+                  </div>
+                </div>
+              </div>
+            </label>
+            <label class="field field-range">
+              <span>最近预报仓库</span>
+              <div class="range-box multi-select-box" id="latestWarehouseBox">
+                <input class="range-display" id="latestWarehouseDisplay" type="text" placeholder="全部" readonly autocomplete="off" />
+                <button class="range-clear" id="latestWarehouseClear" type="button" title="清除">✕</button>
+                <div class="range-drop multi-select-drop" id="latestWarehouseDrop" hidden></div>
+              </div>
+            </label>
+            <label class="field field-range">
+              <span>未循环天数</span>
+              <div class="range-box" id="unreportedDaysBox">
+                <input class="range-display" id="unreportedDaysDisplay" type="text" placeholder="全部" readonly autocomplete="off" />
+                <button class="range-clear" id="unreportedDaysClear" type="button" title="清除">✕</button>
+                <div class="range-drop" hidden>
+                  <div class="range-drop-row">
+                    <input id="unreportedDaysFrom" type="number" min="0" step="1" placeholder="最小" />
+                    <span>—</span>
+                    <input id="unreportedDaysTo" type="number" min="0" step="1" placeholder="最大" />
+                  </div>
+                </div>
+              </div>
+            </label>
+            <button id="boardSearchButton" class="btn primary" type="button">搜索</button>
+            <button id="resetBoardButton" class="btn" type="button">重置</button>
+          </div>
+
+          <div class="board-status-tabs" aria-label="客户合作状态筛选">
+            <button class="board-status-tab active" type="button" data-status="">全部</button>
+            <button class="board-status-tab" type="button" data-status="合作中">合作中</button>
+            <button class="board-status-tab" type="button" data-status="暂停合作">暂停合作</button>
+            <button class="board-status-tab" type="button" data-status="终止合作">终止合作</button>
+          </div>
+
+          <div class="board-list-toolbar" id="boardListToolbar">
+            <div class="toolbar-actions">
+              <button class="btn tiny" id="boardListExportBtn" type="button">导出</button>
+              <button class="btn tiny primary" id="boardListCsBtn" type="button">状态配置</button>
+            </div>
+            <span class="toolbar-update-time" id="boardUpdateTime"></span>
+          </div>
+
+          <div class="alert-table-wrap">
+            <table class="alert-table">
+              <thead>
+                <tr>
+                  <th class="col-check"><input id="boardSelectAll" type="checkbox" aria-label="全选" /></th>
+                  <th>客户简称</th>
+                  <th>客户编码</th>
+                  <th>业务员</th>
+                  <th>当前在库总方数</th>
+                  <th>客户状态</th>
+                  <th>开户时间</th>
+                  <th>最近预报时间</th>
+                  <th>最近预报仓库</th>
+                  <th>未循环天数</th>
+                  <th>洛杉矶仓最近预报时间</th>
+                  <th>洛杉矶仓在库方数</th>
+                  <th>芝加哥仓最近预报时间</th>
+                  <th>芝加哥仓在库方数</th>
+                  <th>新泽西仓最近预报时间</th>
+                  <th>新泽西仓在库方数</th>
+                  <th>萨凡纳仓最近预报时间</th>
+                  <th>萨凡纳仓在库方数</th>
+                  <th>休斯顿仓最近预报时间</th>
+                  <th>休斯顿仓在库方数</th>
+                  <th>奥克兰仓最近预报时间</th>
+                  <th>奥克兰仓在库方数</th>
+                </tr>
+              </thead>
+              <tbody id="alertBody"></tbody>
+            </table>
+            <div id="overviewEmptyState" class="empty-state" hidden>暂无匹配预警记录</div>
+          </div>
+        </section>
+      </main>
+
+      <main class="page-shell" id="tab-warning-dashboard" hidden>
+        <section class="dashboard-panel" aria-label="循环柜预警看板">
+          <div class="board-header">
+            <div>
+              <h1>循环柜预警看板</h1>
+              <p>按周追踪未预报客户数量，并识别连续未预报周数最高的客户</p>
+            </div>
+            <div class="header-tools">
+              <div class="run-meta" id="dashboardMeta">数据加载中</div>
+            </div>
+          </div>
+
+          <div class="board-filters dashboard-filters">
+            <label class="field field-week-range">
+              <span>统计周范围</span>
+              <select id="dashboardWeekRangeSelect">
+                <option value="current">本周</option>
+                <option value="4">近4周</option>
+                <option value="8" selected>近8周</option>
+                <option value="all">全部周期</option>
+              </select>
+            </label>
+            <button id="dashboardSearchButton" class="btn primary" type="button">搜索</button>
+            <button id="dashboardResetButton" class="btn" type="button">重置</button>
+          </div>
+
+          <div class="dashboard-grid">
+            <article class="dashboard-card chart-card">
+              <div class="chart-head">
+                <div>
+                  <h2>每周未预报客户数量</h2>
+                  <p>按统计周范围</p>
+                </div>
+                <strong id="weeklyWarningTotal">0</strong>
+              </div>
+              <div class="line-chart-wrap">
+                <canvas id="weeklyWarningLineChart" height="260"></canvas>
+              </div>
+            </article>
+
+            <article class="dashboard-card chart-card">
+              <div class="chart-head">
+                <div>
+                  <h2>连续未预报周数 Top 10</h2>
+                  <p>当前预警客户范围，展示实际连续周数</p>
+                </div>
+                <strong id="topUnreportedMax">0</strong>
+              </div>
+              <div class="bar-chart-list" id="topUnreportedBarChart"></div>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <main class="page-shell details-drawer" id="tab-details" hidden>
+        <div class="details-top-bar">
+          <button id="backButton" class="drawer-close-btn" type="button" aria-label="关闭">×</button>
+          <strong class="details-title">预报明细</strong>
+          <span id="resultSummary">共 0 条</span>
+          <div class="details-top-actions">
+            <span class="selection-info" id="selectionInfo">已选 0 条</span>
+            <button id="exportSelectedButton" class="btn tiny" type="button" hidden>导出选中</button>
+            <button id="clearSelectionButton" class="btn tiny" type="button" hidden>取消选择</button>
+          </div>
+        </div>
+
+        <section class="search-panel" aria-label="搜索筛选">
+          <div class="search-row">
+            <label class="field">
+              <span>客户名称</span>
+              <input id="customerInput" type="text" placeholder="如 TTTX" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>业务员</span>
+              <input id="salespersonInput" type="text" placeholder="如 jessie" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>运单状态</span>
+              <select id="statusSelect">
+                <option value="">全部运单状态</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>创建时间</span>
+              <input id="createdAtInput" type="text" placeholder="如 2026-06-14" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>船司代码</span>
+              <input id="carrierCodeInput" type="text" placeholder="如 HEDE" autocomplete="off" />
+            </label>
+            <div class="actions" aria-label="搜索操作">
+              <button id="searchButton" class="btn primary" type="button">搜索</button>
+              <button id="resetButton" class="btn" type="button">重置</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="table-section" aria-label="预报明细">
+          <div class="warehouse-tabs" aria-label="仓库筛选">
+            <button class="warehouse-tab active" type="button" data-warehouse="">全部</button>
+            <button class="warehouse-tab" type="button" data-warehouse="洛杉矶仓">洛杉矶仓</button>
+            <button class="warehouse-tab" type="button" data-warehouse="芝加哥仓">芝加哥仓</button>
+            <button class="warehouse-tab" type="button" data-warehouse="新泽西仓">新泽西仓</button>
+            <button class="warehouse-tab" type="button" data-warehouse="萨凡纳仓">萨凡纳仓</button>
+            <button class="warehouse-tab" type="button" data-warehouse="休斯顿仓">休斯顿仓</button>
+            <button class="warehouse-tab" type="button" data-warehouse="奥克兰仓">奥克兰仓</button>
+            <button class="btn tiny" id="exportButton" type="button">导出</button>
+            <button class="icon-btn field-settings-button" id="fieldSettingsButton" type="button" aria-label="自定义列表字段" title="自定义列表字段">⚙</button>
+          </div>
+
+          <div class="table-wrap">
+            <table id="detailsTable">
+              <thead>
+                <tr id="detailsTableHead"></tr>
+              </thead>
+              <tbody id="tableBody"></tbody>
+            </table>
+            <div id="emptyState" class="empty-state" hidden>暂无匹配数据</div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+
+    <div class="field-settings-mask" id="fieldSettingsMask" hidden></div>
+    <aside class="field-settings-drawer" id="fieldSettingsDrawer" hidden aria-label="自定义列表字段">
+      <div class="field-settings-header">
+        <button class="modal-close-btn" id="fieldSettingsClose" type="button" aria-label="关闭">×</button>
+        <h2>自定义列表字段</h2>
+      </div>
+      <div class="field-settings-table-wrap">
+        <table class="field-settings-table">
+          <thead>
+            <tr>
+              <th>列顺序</th>
+              <th>字段名称(中文)</th>
+              <th>是否显示</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="fieldSettingsBody"></tbody>
+        </table>
+      </div>
+      <div class="field-settings-footer">
+        <button class="btn" id="fieldSettingsCancel" type="button">取消</button>
+        <button class="btn primary" id="fieldSettingsApply" type="button">应用</button>
+      </div>
+    </aside>
+
+    <div id="toast" class="toast" hidden></div>
+
+    <div class="modal-overlay" id="customerStatusModal" hidden>
+      <div class="modal-panel" style="width:480px;">
+        <div class="modal-header">
+          <h2>状态配置</h2>
+          <button class="modal-close-btn" id="customerStatusModalClose" type="button" aria-label="关闭">✕</button>
+        </div>
+        <div class="progress-modal-body" style="padding:20px 24px;">
+          <div class="progress-form-row">
+            <label class="progress-form-label">暂停合作</label>
+            <div class="progress-form-control">
+              <input id="csPauseDays" type="number" min="0" step="1" style="width:100%;height:34px;border:1px solid #d0d7df;border-radius:4px;padding:0 10px;font-size:13px;outline:none;" />
+              <p class="progress-form-hint">未循环天数大于等于该值时显示为暂停合作。</p>
+            </div>
+          </div>
+          <div class="progress-form-row">
+            <label class="progress-form-label">终止合作</label>
+            <div class="progress-form-control">
+              <input id="csTerminateDays" type="number" min="1" step="1" style="width:100%;height:34px;border:1px solid #d0d7df;border-radius:4px;padding:0 10px;font-size:13px;outline:none;" />
+              <p class="progress-form-hint">未循环天数大于等于该值时显示为终止合作。</p>
+            </div>
+          </div>
+          <div class="progress-form-row">
+            <label class="progress-form-label">低方数预警</label>
+            <div class="progress-form-control">
+              <input id="csLowVolumeThreshold" type="number" min="0" step="1" style="width:100%;height:34px;border:1px solid #d0d7df;border-radius:4px;padding:0 10px;font-size:13px;outline:none;" />
+              <p class="progress-form-hint">在库方数低于该值时标红显示。</p>
+            </div>
+          </div>
+          <div id="csConfigSummary" style="margin:0 0 14px 92px;color:#55708e;font-size:12px;line-height:1.6;"></div>
+          <div class="progress-modal-actions" style="margin-top:18px;">
+            <button class="btn" id="csCancelBtn" type="button">取消</button>
+            <button class="btn primary" id="csConfirmBtn" type="button">确认</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="script.js?v=20260707-warehouse-dropdown-total"></script>
+    <script>
+      window.addEventListener('error', function(e) {
+        document.querySelector('#alertBody') && (document.querySelector('#alertBody').innerHTML = '<tr><td colspan="22" style="color:red;padding:20px;text-align:center;">JS 错误: ' + e.message + ' (行 ' + e.lineno + ':' + e.colno + ')</td></tr>');
+      });
+    </script>
+  </body>
+</html>
