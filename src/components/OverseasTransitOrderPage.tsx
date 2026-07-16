@@ -1515,10 +1515,9 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
   const signedRollbackConfirmRows = allRows.filter((row) => signedRollbackConfirmOrderKeys.includes(getOrderKey(row)) && row.status === '签收');
   const usesOrderFormTemplate = (status: string) => orderFormStatuses.has(status);
   const showOverseasWaybillNo = true;
-  const showExpressCreationStatus = activeTab === '已确认';
-  const orderTableColumnCount = (showOverseasWaybillNo ? 21 : 17) + (activeLifecycleTimeConfig ? 1 : 0) + (showExpressCreationStatus ? 1 : 0) + 4;
+  const orderTableColumnCount = (showOverseasWaybillNo ? 21 : 17) + (activeLifecycleTimeConfig ? 1 : 0) + 4;
   const orderTableMinWidthClass = showOverseasWaybillNo
-    ? (activeLifecycleTimeConfig ? 'min-w-[3680px]' : showExpressCreationStatus ? 'min-w-[3720px]' : 'min-w-[3520px]')
+    ? (activeLifecycleTimeConfig ? 'min-w-[3680px]' : 'min-w-[3520px]')
     : (activeLifecycleTimeConfig ? 'min-w-[3200px]' : 'min-w-[3040px]');
   const commonOrderSearchFields = showOverseasWaybillNo ? fullOrderSearchFields : baseOrderSearchFields;
   const orderSearchFields: OrderSearchField[] = activeLifecycleTimeConfig
@@ -2595,7 +2594,6 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                 <th className="w-44 border border-slate-200 px-3 py-2 text-center">头程运单号</th>
                 {showOverseasWaybillNo && <th className="w-56 border border-slate-200 px-3 py-2 text-center">海外仓运单号</th>}
                 {showOverseasWaybillNo && <th className="w-36 border border-slate-200 px-3 py-2 text-center">子单创建时间</th>}
-                {showExpressCreationStatus && <th className="w-48 border border-slate-200 px-3 py-2 text-center">快递单状态 / 快递单号</th>}
                 {activeLifecycleTimeConfig && <th className="w-40 border border-slate-200 px-3 py-2 text-center">{activeLifecycleTimeConfig.label}</th>}
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">转单号</th>
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">FBA单号</th>
@@ -2641,18 +2639,6 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                   <td className="border border-slate-200 px-3 text-center font-mono">{row.id}</td>
                   {showOverseasWaybillNo && <td className="border border-slate-200 px-3 text-center font-mono text-blue-600">{getOverseasWaybillNo(row)}</td>}
                   {showOverseasWaybillNo && <td className="border border-slate-200 px-3 text-center font-mono text-slate-500">{row.childCreatedAt || '-'}</td>}
-                  {showExpressCreationStatus && (
-                    <td className="border border-slate-200 px-3 text-center">
-                      {expressRecordsByOrder[getOrderKey(row)] ? (
-                        <>
-                          <span className="rounded-full bg-emerald-50 px-2 py-1 font-bold text-emerald-600">已创建</span>
-                          <div className="mt-1 font-mono text-[10px] text-blue-600">{expressRecordsByOrder[getOrderKey(row)].trackingNo}</div>
-                        </>
-                      ) : (
-                        <span className="rounded-full bg-amber-50 px-2 py-1 font-bold text-amber-600">待创建</span>
-                      )}
-                    </td>
-                  )}
                   {activeLifecycleTimeConfig && <td className="border border-slate-200 px-3 text-center font-mono text-slate-500">{row[activeLifecycleTimeConfig.key] || '-'}</td>}
                   <td className="border border-slate-200 px-3 text-center font-mono">{row.transferNo || '-'}</td>
                   <td className="border border-slate-200 px-3 text-center font-mono">{row.fbaCode}</td>
