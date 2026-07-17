@@ -12,11 +12,17 @@ export type CreatedTransitInstruction = {
   addedAt: string;
   addedBy: string;
 };
+
+export type TransitReconciliationStatus = '已核销' | '未核销' | '部分核销';
+export type OverseasWarehouseArrivalStatus = '是' | '否';
+
 export type CreatedTransitChildOrder = {
   id: string;
   parentHeadWaybillNo: string;
   addressForm: AddressFormState;
   instructions: CreatedTransitInstruction[];
+  reconciliationStatus: TransitReconciliationStatus;
+  overseasWarehouseArrivalStatus: OverseasWarehouseArrivalStatus;
   fbaCode: string;
   customerName: string;
   destination: string;

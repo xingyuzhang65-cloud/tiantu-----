@@ -853,6 +853,8 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
       parentHeadWaybillNo: activeStorageOrderKey,
       addressForm: { ...storageAddressForm },
       instructions: activeStorageInstructionRows.map((row) => ({ ...row })),
+      reconciliationStatus: '未核销',
+      overseasWarehouseArrivalStatus: '否',
       fbaCode: activeStorageOrder.fbaNo || `FBA-${activeStorageOrderKey}`,
       customerName: activeStorageOrder.customer,
       destination: storageAddressForm.state ? `${storageAddressForm.city}, ${storageAddressForm.state}` : '美国',
