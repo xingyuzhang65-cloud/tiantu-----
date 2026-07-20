@@ -4,7 +4,7 @@ import {
   MessageSquareCode, BarChart3, Settings, Users,
   DownloadCloud, Cpu, Megaphone, ChevronDown, ChevronRight,
   TrendingUp, ArrowRightLeft, Layers, Wrench, Printer, Package,
-  PackageOpen, SlidersHorizontal
+  PackageOpen, SlidersHorizontal, UserCog, KeyRound
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -19,6 +19,7 @@ export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProp
   const [overseasTransitExpanded, setOverseasTransitExpanded] = useState(true);
   const [warehouseTransferExpanded, setWarehouseTransferExpanded] = useState(true);
   const [configExpanded, setConfigExpanded] = useState(true);
+  const [accountSettingsExpanded, setAccountSettingsExpanded] = useState(true);
 
   // Outer rail menu items
   const railItems = [
@@ -59,6 +60,9 @@ export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProp
                   }
                   if (item.name === '配置') {
                     onSubViewChange('贸易方式配置');
+                  }
+                  if (item.name === '管理') {
+                    onSubViewChange('用户');
                   }
                 }}
                 className={`group flex w-full flex-col items-center justify-center py-2 transition-all duration-150 relative ${
@@ -411,8 +415,22 @@ export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProp
             </>
           )}
 
+          {activeRail === '管理' && (
+            <div className='space-y-1'>
+              <button id='btn-fold-account-settings' onClick={() => setAccountSettingsExpanded(!accountSettingsExpanded)} className='flex w-full items-center justify-between rounded px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200/50'>
+                <div className='flex items-center gap-2'><KeyRound className='h-4 w-4 text-blue-600'/><span>账号设置</span></div>
+                {accountSettingsExpanded ? <ChevronDown className='h-3 w-3'/> : <ChevronRight className='h-3 w-3'/>}
+              </button>
+              {accountSettingsExpanded && <div className='ml-4 space-y-0.5 border-l border-slate-200 pl-2'>
+                <button id='submenu-item-用户' onClick={() => onSubViewChange('用户')} className={`flex w-full items-center gap-2 rounded px-3 py-1.5 text-xs transition-colors ${currentSubView === '用户' ? 'bg-blue-50 font-semibold text-blue-600' : 'text-slate-600 hover:bg-slate-200/50'}`}>
+                  <UserCog className='h-3.5 w-3.5'/><span>用户</span>
+                </button>
+              </div>}
+            </div>
+          )}
+
           {/* Fallback for other rails without a configured submenu */}
-          {activeRail !== '单据' && activeRail !== '产品' && activeRail !== '仓库' && (
+          {activeRail !== '单据' && activeRail !== '产品' && activeRail !== '仓库' && activeRail !== '管理' && (
             <div className="px-3 py-4 text-center text-xs text-slate-400">
               暂无子菜单
             </div>
