@@ -64,6 +64,9 @@ export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProp
                   if (item.name === '管理') {
                     onSubViewChange('用户');
                   }
+                  if (item.name === '营销') {
+                    onSubViewChange('营销数据看板');
+                  }
                 }}
                 className={`group flex w-full flex-col items-center justify-center py-2 transition-all duration-150 relative ${
                   isActive 
@@ -429,8 +432,21 @@ export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProp
             </div>
           )}
 
+          {activeRail === '营销' && (
+            <div className='space-y-1'>
+              <div className='flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-700'>
+                <Megaphone className='h-4 w-4 text-blue-600'/><span>营销管理</span>
+              </div>
+              <div className='ml-4 border-l border-slate-200 pl-2'>
+                <button id='submenu-item-营销数据看板' onClick={() => onSubViewChange('营销数据看板')} className={`flex w-full items-center gap-2 rounded px-3 py-1.5 text-xs transition-colors ${currentSubView === '营销数据看板' ? 'bg-blue-50 font-semibold text-blue-600' : 'text-slate-600 hover:bg-slate-200/50'}`}>
+                  <BarChart3 className='h-3.5 w-3.5'/><span>营销数据看板</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Fallback for other rails without a configured submenu */}
-          {activeRail !== '单据' && activeRail !== '产品' && activeRail !== '仓库' && activeRail !== '管理' && (
+          {activeRail !== '单据' && activeRail !== '产品' && activeRail !== '仓库' && activeRail !== '管理' && activeRail !== '营销' && (
             <div className="px-3 py-4 text-center text-xs text-slate-400">
               暂无子菜单
             </div>

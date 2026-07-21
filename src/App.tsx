@@ -11,6 +11,7 @@ import WarehouseShipmentPage from './components/WarehouseShipmentPage';
 import OverseasTransitOrderPage from './components/OverseasTransitOrderPage';
 import ExpressOrderPage from './components/ExpressOrderPage';
 import UserManagementPage from './components/UserManagementPage';
+import MarketingDashboardPage from './components/MarketingDashboardPage';
 import { Waybill, OrderType, WaybillChangeLog } from './types';
 import { Settings, HelpCircle, Layers, ShieldCheck, Mail, Phone, Calendar } from 'lucide-react';
 
@@ -556,6 +557,8 @@ export default function App() {
           <WarehouseTransitOutPage addToast={addToast} />
         ) : currentTab === '用户' ? (
           <UserManagementPage addToast={addToast} />
+        ) : currentTab === '营销数据看板' ? (
+          <MarketingDashboardPage addToast={addToast} />
         ) : (
           /* General Constant Parameter manager and settings views */
           <div className="flex-1 p-6 overflow-y-auto space-y-6">
