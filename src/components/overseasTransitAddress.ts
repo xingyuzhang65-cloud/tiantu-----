@@ -8,6 +8,7 @@ export interface AddressFormState {
   state: string;
   company: string;
   scheduledShippingTime: string;
+  deliveryMethod: string;
   addressDetail: string;
   remark: string;
   overseasWarehouseRemark: string;
@@ -16,6 +17,8 @@ export interface AddressFormState {
 export const overseasOrderTypes = ['FBA', 'Walmart', 'TikTok', '私人地址'];
 
 export const overseasWarehouseCodes = ['ONT8', 'PSC2', 'ABE2', 'FTW1'];
+
+export const overseasDeliveryMethods = ['快递派送', '卡车派送', '客户自提'];
 
 export const emptyAddressForm: AddressFormState = {
   orderType: 'FBA',
@@ -27,6 +30,7 @@ export const emptyAddressForm: AddressFormState = {
   state: '',
   company: '',
   scheduledShippingTime: '',
+  deliveryMethod: '',
   addressDetail: '',
   remark: '',
   overseasWarehouseRemark: '',
@@ -34,7 +38,7 @@ export const emptyAddressForm: AddressFormState = {
 
 export const warehouseAddressBook: Record<
   string,
-  Omit<AddressFormState, 'orderType' | 'warehouseCode' | 'phone' | 'company' | 'scheduledShippingTime' | 'remark' | 'overseasWarehouseRemark'>
+  Omit<AddressFormState, 'orderType' | 'warehouseCode' | 'phone' | 'company' | 'scheduledShippingTime' | 'deliveryMethod' | 'remark' | 'overseasWarehouseRemark'>
 > = {
   PSC2: {
     zipCode: '99301',

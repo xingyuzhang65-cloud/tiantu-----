@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import {
   emptyAddressForm,
+  overseasDeliveryMethods,
   overseasOrderTypes,
   overseasWarehouseCodes,
   warehouseAddressBook,
@@ -845,6 +846,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
     const boxNumbers = activeStorageSelectedBoxIndexes.map(getStorageBoxNumber).filter(Boolean);
     if (boxNumbers.length === 0) { addToast('请先勾选需要提交的箱号', 'warning'); return; }
     if (!storageAddressForm.scheduledShippingTime) { addToast('请选择预约发货时间', 'warning'); return; }
+    if (!storageAddressForm.deliveryMethod) { addToast('请选择派送方式', 'warning'); return; }
     if (!storageAddressForm.orderType || !storageAddressForm.warehouseCode || !storageAddressForm.zipCode || !storageAddressForm.city || !storageAddressForm.addressDetail) { addToast('请先填写完整的收件地址信息', 'warning'); return; }
     const orderSeq = getCreatedTransitChildOrders().filter((item) => item.parentHeadWaybillNo === activeStorageOrderKey).length + 1;
     const now = formatLocalDateTime();
@@ -1527,6 +1529,19 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                           value={storageAddressForm.scheduledShippingTime}
                           onChange={(event) => updateStorageAddressField('scheduledShippingTime', event.target.value)}
                         />
+                      </DrawerFormRow>
+                      <DrawerFormRow label='派送方式' required>
+                        <select
+                          className={drawerFieldClass}
+                          required
+                          value={storageAddressForm.deliveryMethod}
+                          onChange={(event) => updateStorageAddressField('deliveryMethod', event.target.value)}
+                        >
+                          <option value="">请选择派送方式</option>
+                          {overseasDeliveryMethods.map((method) => (
+                            <option key={method} value={method}>{method}</option>
+                          ))}
+                        </select>
                       </DrawerFormRow>
                       <DrawerTextareaRow
                         label="海外仓备注"

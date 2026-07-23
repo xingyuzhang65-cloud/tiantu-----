@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import {
   emptyAddressForm,
+  overseasDeliveryMethods,
   overseasOrderTypes,
   overseasWarehouseCodes,
   warehouseAddressBook,
@@ -1760,6 +1761,15 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
       addToast('预约发货时间为必填项，请先补充后再确认', 'warning');
       return;
     }
+    const missingDeliveryMethodRows = rows.filter((row) => {
+      const orderKey = getOrderKey(row);
+      const currentAddressForm = addressFormsByOrder[orderKey] || getParentStorageAddressForm(row);
+      return !currentAddressForm.deliveryMethod;
+    });
+    if (missingDeliveryMethodRows.length > 0) {
+      addToast('派送方式为必填项，请先补充后再确认', 'warning');
+      return;
+    }
 
     const createdOrderIds = rows.filter(isCreatedTransitChildOrder).map((row) => row.id);
     const seedOrderKeys = rows.filter((row) => !isCreatedTransitChildOrder(row)).map(getOrderKey);
@@ -2442,6 +2452,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
   const saveOrderFormEdit = () => {
     if (!activeOrder || !activeOrderKey || !isOrderFormEditing) return;
     if (!addressForm.scheduledShippingTime) { addToast('请选择预约发货时间', 'warning'); return; }
+    if (!addressForm.deliveryMethod) { addToast('请选择派送方式', 'warning'); return; }
     if (!addressForm.orderType || !addressForm.warehouseCode || !addressForm.zipCode || !addressForm.city || !addressForm.addressDetail) { addToast('请先填写完整的收件地址信息', 'warning'); return; }
     setAddressFormSnapshotsByOrder((prev) => {
       const next = { ...prev };
@@ -2994,6 +3005,20 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                           disabled={!isOrderFormEditing}
                           onChange={(event) => updateAddressField('scheduledShippingTime', event.target.value)}
                         />
+                      </FormRow>
+                      <FormRow label="派送方式" requiredMark>
+                        <select
+                          className={fieldClass}
+                          required
+                          value={addressForm.deliveryMethod}
+                          disabled={!isOrderFormEditing}
+                          onChange={(event) => updateAddressField('deliveryMethod', event.target.value)}
+                        >
+                          <option value="">请选择派送方式</option>
+                          {overseasDeliveryMethods.map((method) => (
+                            <option key={method} value={method}>{method}</option>
+                          ))}
+                        </select>
                       </FormRow>
                       <TextareaRow
                         label="海外仓备注"
