@@ -450,9 +450,6 @@ const matchesStorageIdentifierQuery = (value: string | undefined, query: string)
 const tableHeaders = ['头程运单号', 'FBA单号', '客户单号', '客户简称', '中转单类型', '总件数', '库存件数', '可用件数', '服务', '客户备注', '海外仓备注', '代理', '入仓时间', '仓租时间', '操作'];
 const storageExtendedHeaders = [
   '头程运单号',
-  'FBA单号',
-  '柜号',
-  '提单号',
   '入仓号',
   'Shipment ID',
   'Reference ID',
@@ -467,9 +464,6 @@ const storageExtendedHeaders = [
   '库龄',
   '转单号',
   '仓库代码',
-  '销售代表',
-  '跟单代表',
-  '财务代表',
   '收费重',
   '实重',
   '材积重',
@@ -498,9 +492,6 @@ const overseasSearchFields: SearchField[] = [
 
 const storageSearchFields: SearchField[] = [
   { label: '头程运单号', type: 'input', placeholder: '支持批量' },
-  { label: 'FBA单号', type: 'input', placeholder: '支持批量' },
-  { label: '柜号', type: 'input', placeholder: '支持批量' },
-  { label: '提单号', type: 'input', placeholder: '支持批量' },
   { label: '入仓号', type: 'input', placeholder: '支持单个/模糊查询', searchKey: 'inboundNo' },
   { label: 'Shipment ID', type: 'input', placeholder: '支持单个/模糊查询', searchKey: 'shipmentId' },
   { label: 'Reference ID', type: 'input', placeholder: '支持单个/模糊查询', searchKey: 'referenceId' },
@@ -509,9 +500,6 @@ const storageSearchFields: SearchField[] = [
   { label: '服务', type: 'select', options: ['美森15日达-快递派', '美森15日达-卡派包税', '美线海卡'] },
   { label: '入仓时间', type: 'select', options: ['近 7 天', '近 30 天'] },
   { label: '仓租时间', type: 'select', options: ['近 7 天', '近 30 天'] },
-  { label: '销售代表', type: 'input', placeholder: '请输入' },
-  { label: '跟单代表', type: 'input', placeholder: '请输入' },
-  { label: '财务代表', type: 'input', placeholder: '请输入' },
 ];
 
 const getCompletedStorageAddressForm = (row: OverseasTransitRow): AddressFormState => {
@@ -765,7 +753,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
   const visibleTableHeaders = isStorageListMode
     ? storageExtendedHeaders.filter((header) => !hideStorageTimingColumns || !transportationHiddenStorageHeaders.has(header))
     : tableHeaders;
-  const storageTableMinWidthClass = hideStorageTimingColumns ? 'min-w-[3070px]' : 'min-w-[3630px]';
+  const storageTableMinWidth = hideStorageTimingColumns ? '2260px' : '2830px';
 
   const getTabCount = (tab: TransitStatus) => {
     const scopedRows = mode === 'storage'
@@ -1199,12 +1187,15 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
         </div>
 
         <div className="overflow-x-auto border border-slate-200">
-          <table className={`w-full ${isStorageListMode ? storageTableMinWidthClass : 'min-w-[1800px]'} table-fixed border-collapse text-[11px]`}>
+          <table
+            className={`w-full ${isStorageListMode ? '' : 'min-w-[1800px]'} table-fixed border-collapse text-[11px]`}
+            style={isStorageListMode ? { minWidth: storageTableMinWidth } : undefined}
+          >
             {isStorageListMode && (
               <colgroup>
                 <col style={{ width: '40px' }} />
                 {visibleTableHeaders.map((head, index) => (
-                  <col key={'storage-col-' + index + '-' + head} style={{ width: index === 0 ? '184px' : index === 1 ? '156px' : index === 2 ? '128px' : index === 3 ? '156px' : storageIdentifierHeaders.has(head) ? '160px' : '130px' }} />
+                  <col key={'storage-col-' + index + '-' + head} style={{ width: index === 0 ? '184px' : storageIdentifierHeaders.has(head) ? '160px' : '130px' }} />
                 ))}
               </colgroup>
             )}
@@ -1216,12 +1207,10 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                 {visibleTableHeaders.map((head, index) => (
                   <th
                     key={head}
-                    className={'border border-slate-300 py-2 font-semibold ' + (isStorageListMode && index < 4 ? 'px-2 ' : 'px-3 ') + (
+                    className={'border border-slate-300 py-2 font-semibold ' + (isStorageListMode && index === 0 ? 'px-2 ' : 'px-3 ') + (
                       isStorageListMode && index === 0
                         ? 'sticky left-10 z-30 bg-[#f2f2f2] text-left'
-                        : isStorageListMode && index === 1
-                          ? 'sticky left-[224px] z-30 bg-[#f2f2f2] text-left shadow-[1px_0_0_0_rgba(148,163,184,0.45)]'
-                          : 'text-center'
+                        : 'text-center'
                     )}
                   >
                     {head}
@@ -1245,11 +1234,6 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                           <td className="sticky left-10 z-20 border border-slate-300 bg-white px-2 text-left font-mono group-hover:bg-blue-50">
                             <span className="block truncate font-semibold text-slate-800" title={row.headWaybillNo}>{row.headWaybillNo}</span>
                           </td>
-                          <td className="sticky left-[224px] z-20 border border-slate-300 bg-white px-2 text-left font-mono shadow-[1px_0_0_0_rgba(148,163,184,0.35)] group-hover:bg-blue-50">
-                            <span className="block truncate font-semibold text-slate-800" title={row.fbaNo || '-'}>{row.fbaNo || '-'}</span>
-                          </td>
-                          <td className="border border-slate-300 px-2 text-center font-mono">{row.containerNo || '-'}</td>
-                          <td className="border border-slate-300 px-2 text-center font-mono">{row.billOfLadingNo || '-'}</td>
                           {!hideStorageTimingColumns && (
                             <td className="border border-slate-300 px-2 text-center font-mono">{row.inboundNo || '-'}</td>
                           )}
@@ -1270,9 +1254,6 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                           )}
                           <td className="border border-slate-300 px-3 text-center font-mono">{row.transferNo || '-'}</td>
                           <td className="border border-slate-300 px-3 text-center">{row.warehouseCode || '-'}</td>
-                          <td className="border border-slate-300 px-3 text-center">{row.salesRepresentative || row.salesman || '-'}</td>
-                          <td className="border border-slate-300 px-3 text-center">{row.followupRepresentative || '-'}</td>
-                          <td className="border border-slate-300 px-3 text-center">{row.financeRepresentative || '-'}</td>
                           <td className="border border-slate-300 px-3 text-center">{row.chargeWeight || '-'}</td>
                           <td className="border border-slate-300 px-3 text-center">{row.actualWeight || '-'}</td>
                           <td className="border border-slate-300 px-3 text-center">{row.volumetricWeight || '-'}</td>
@@ -1360,8 +1341,6 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                     <DrawerReadonlyField label="入仓时间">{activeStorageOrder.inboundAt}</DrawerReadonlyField>
                     <DrawerReadonlyField label="仓租时间">{activeStorageOrder.warehouseAt}</DrawerReadonlyField>
                     <DrawerReadonlyField label="库龄">{getStorageAgeText(activeStorageOrder.inboundAt)}</DrawerReadonlyField>
-                    <DrawerReadonlyField label="销售代表">{activeStorageOrder.salesRepresentative || activeStorageOrder.salesman || '-'}</DrawerReadonlyField>
-                    <DrawerReadonlyField label="跟单代表">{activeStorageOrder.followupRepresentative || '-'}</DrawerReadonlyField>
                     <DrawerReadonlyField label="财务代表">{activeStorageOrder.financeRepresentative || '-'}</DrawerReadonlyField>
                     <DrawerReadonlyField label="客户备注" className="col-span-2">{activeStorageOrder.customerRemark || '-'}</DrawerReadonlyField>
                     <DrawerReadonlyField label="海外仓备注" className="col-span-2">{activeStorageOrder.overseasWarehouseRemark || '-'}</DrawerReadonlyField>
