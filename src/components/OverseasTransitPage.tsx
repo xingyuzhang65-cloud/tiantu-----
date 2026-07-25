@@ -34,7 +34,7 @@ import {
   submitStorageBoxesAsTransitChild,
   subscribeOverseasTransitFlow,
 } from './overseasTransitFlow';
-import type { CreatedTransitChildOrder } from './overseasTransitFlow';
+import type { CreatedTransitAttachment, CreatedTransitChildOrder } from './overseasTransitFlow';
 
 interface OverseasTransitPageProps {
   addToast: (msg: string, type: 'success' | 'info' | 'warning') => void;
@@ -450,6 +450,9 @@ const matchesStorageIdentifierQuery = (value: string | undefined, query: string)
 const tableHeaders = ['头程运单号', 'FBA单号', '客户单号', '客户简称', '中转单类型', '总件数', '库存件数', '可用件数', '服务', '客户备注', '海外仓备注', '代理', '入仓时间', '仓租时间', '操作'];
 const storageExtendedHeaders = [
   '头程运单号',
+  'FBA单号',
+  '柜号',
+  '提单号',
   '入仓号',
   'Shipment ID',
   'Reference ID',
@@ -464,6 +467,7 @@ const storageExtendedHeaders = [
   '库龄',
   '转单号',
   '仓库代码',
+  '财务代表',
   '收费重',
   '实重',
   '材积重',
@@ -492,6 +496,9 @@ const overseasSearchFields: SearchField[] = [
 
 const storageSearchFields: SearchField[] = [
   { label: '头程运单号', type: 'input', placeholder: '支持批量' },
+  { label: 'FBA单号', type: 'input', placeholder: '支持批量' },
+  { label: '柜号', type: 'input', placeholder: '支持批量' },
+  { label: '提单号', type: 'input', placeholder: '支持批量' },
   { label: '入仓号', type: 'input', placeholder: '支持单个/模糊查询', searchKey: 'inboundNo' },
   { label: 'Shipment ID', type: 'input', placeholder: '支持单个/模糊查询', searchKey: 'shipmentId' },
   { label: 'Reference ID', type: 'input', placeholder: '支持单个/模糊查询', searchKey: 'referenceId' },
@@ -500,6 +507,7 @@ const storageSearchFields: SearchField[] = [
   { label: '服务', type: 'select', options: ['美森15日达-快递派', '美森15日达-卡派包税', '美线海卡'] },
   { label: '入仓时间', type: 'select', options: ['近 7 天', '近 30 天'] },
   { label: '仓租时间', type: 'select', options: ['近 7 天', '近 30 天'] },
+  { label: '财务代表', type: 'input', placeholder: '请输入' },
 ];
 
 const getCompletedStorageAddressForm = (row: OverseasTransitRow): AddressFormState => {
@@ -724,6 +732,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
   const [appliedStorageIdentifierFilters, setAppliedStorageIdentifierFilters] = useState<Record<StorageIdentifierSearchKey, string>>({ ...emptyStorageIdentifierSearchValues });
   const [selectedStorageBoxIndexesByOrder, setSelectedStorageBoxIndexesByOrder] = useState<Record<string, number[]>>({});
   const [storageAddressForm, setStorageAddressForm] = useState<AddressFormState>({ ...emptyAddressForm });
+  const [storageAttachments, setStorageAttachments] = useState<CreatedTransitAttachment[]>([]);
   const [storageInstructionRowsByOrder, setStorageInstructionRowsByOrder] = useState<Record<string, StorageInstructionRow[]>>({});
   const [showStorageInstructionModal, setShowStorageInstructionModal] = useState(false);
   const [selectedStorageInstructionFeeCodes, setSelectedStorageInstructionFeeCodes] = useState<string[]>(storageInstructionFeeRows.slice(0, 3).map((row) => row.code));
@@ -753,7 +762,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
   const visibleTableHeaders = isStorageListMode
     ? storageExtendedHeaders.filter((header) => !hideStorageTimingColumns || !transportationHiddenStorageHeaders.has(header))
     : tableHeaders;
-  const storageTableMinWidth = hideStorageTimingColumns ? '2260px' : '2830px';
+  const storageTableMinWidthClass = hideStorageTimingColumns ? 'min-w-[3070px]' : 'min-w-[3630px]';
 
   const getTabCount = (tab: TransitStatus) => {
     const scopedRows = mode === 'storage'
@@ -781,6 +790,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
         return;
       }
       setStorageAddressForm(nextRow.status === '暂存已完成' ? getCompletedStorageAddressForm(nextRow) : { ...emptyAddressForm });
+      setStorageAttachments([]);
       setActiveStorageOrder(nextRow);
       addToast(`已打开 ${nextRow.headWaybillNo} ${nextRow.status === '暂存已完成' ? '暂存已完成详情' : '中转下单页面'}`, 'info');
       return;
@@ -826,7 +836,24 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
 
   const cancelStorageSubmission = () => {
     if (activeStorageOrderKey) setSelectedStorageBoxIndexesByOrder((prev) => ({ ...prev, [activeStorageOrderKey]: [] }));
+    setStorageAttachments([]);
     setActiveStorageOrder(null);
+  };
+
+  const handleStorageAttachmentFileChange = (file?: File) => {
+    if (!file) return;
+    const sizeInMb = file.size / 1024 / 1024;
+    setStorageAttachments([{
+      id: `STORAGE-ATT-${Date.now()}`,
+      name: file.name,
+      type: '其它',
+      customerVisible: '可见',
+      uploadedAt: formatLocalDateTime(),
+      uploadedBy: '天朗（付豪）',
+      fileSize: sizeInMb >= 1 ? `${sizeInMb.toFixed(1)}MB` : `${Math.max(1, Math.round(file.size / 1024))}KB`,
+      file,
+    }]);
+    addToast('附件已选择，提交下单后可在子单其它信息中下载', 'info');
   };
 
   const submitStorageOrder = () => {
@@ -870,10 +897,12 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
       volume: (boxNumbers.length * 0.078).toFixed(2),
       inboundTime: activeStorageOrder.warehouseAt,
       boxNumbers,
+      attachments: storageAttachments,
     };
     submitStorageBoxesAsTransitChild(child);
     setSelectedStorageBoxIndexesByOrder((prev) => ({ ...prev, [activeStorageOrderKey]: [] }));
     setStorageInstructionRowsByOrder((prev) => ({ ...prev, [activeStorageOrderKey]: [] }));
+    setStorageAttachments([]);
     setStorageAddressForm({ ...emptyAddressForm });
     setActiveStorageOrder(null);
     addToast(`已提交 ${boxNumbers.length} 箱，已生成海外中转单并流转至待确认状态`, 'success');
@@ -1187,15 +1216,12 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
         </div>
 
         <div className="overflow-x-auto border border-slate-200">
-          <table
-            className={`w-full ${isStorageListMode ? '' : 'min-w-[1800px]'} table-fixed border-collapse text-[11px]`}
-            style={isStorageListMode ? { minWidth: storageTableMinWidth } : undefined}
-          >
+          <table className={`w-full ${isStorageListMode ? storageTableMinWidthClass : 'min-w-[1800px]'} table-fixed border-collapse text-[11px]`}>
             {isStorageListMode && (
               <colgroup>
                 <col style={{ width: '40px' }} />
                 {visibleTableHeaders.map((head, index) => (
-                  <col key={'storage-col-' + index + '-' + head} style={{ width: index === 0 ? '184px' : storageIdentifierHeaders.has(head) ? '160px' : '130px' }} />
+                  <col key={'storage-col-' + index + '-' + head} style={{ width: index === 0 ? '184px' : index === 1 ? '156px' : index === 2 ? '128px' : index === 3 ? '156px' : storageIdentifierHeaders.has(head) ? '160px' : '130px' }} />
                 ))}
               </colgroup>
             )}
@@ -1207,10 +1233,12 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                 {visibleTableHeaders.map((head, index) => (
                   <th
                     key={head}
-                    className={'border border-slate-300 py-2 font-semibold ' + (isStorageListMode && index === 0 ? 'px-2 ' : 'px-3 ') + (
+                    className={'border border-slate-300 py-2 font-semibold ' + (isStorageListMode && index < 4 ? 'px-2 ' : 'px-3 ') + (
                       isStorageListMode && index === 0
                         ? 'sticky left-10 z-30 bg-[#f2f2f2] text-left'
-                        : 'text-center'
+                        : isStorageListMode && index === 1
+                          ? 'sticky left-[224px] z-30 bg-[#f2f2f2] text-left shadow-[1px_0_0_0_rgba(148,163,184,0.45)]'
+                          : 'text-center'
                     )}
                   >
                     {head}
@@ -1234,6 +1262,11 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                           <td className="sticky left-10 z-20 border border-slate-300 bg-white px-2 text-left font-mono group-hover:bg-blue-50">
                             <span className="block truncate font-semibold text-slate-800" title={row.headWaybillNo}>{row.headWaybillNo}</span>
                           </td>
+                          <td className="sticky left-[224px] z-20 border border-slate-300 bg-white px-2 text-left font-mono shadow-[1px_0_0_0_rgba(148,163,184,0.35)] group-hover:bg-blue-50">
+                            <span className="block truncate font-semibold text-slate-800" title={row.fbaNo || '-'}>{row.fbaNo || '-'}</span>
+                          </td>
+                          <td className="border border-slate-300 px-2 text-center font-mono">{row.containerNo || '-'}</td>
+                          <td className="border border-slate-300 px-2 text-center font-mono">{row.billOfLadingNo || '-'}</td>
                           {!hideStorageTimingColumns && (
                             <td className="border border-slate-300 px-2 text-center font-mono">{row.inboundNo || '-'}</td>
                           )}
@@ -1254,6 +1287,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                           )}
                           <td className="border border-slate-300 px-3 text-center font-mono">{row.transferNo || '-'}</td>
                           <td className="border border-slate-300 px-3 text-center">{row.warehouseCode || '-'}</td>
+                          <td className="border border-slate-300 px-3 text-center">{row.financeRepresentative || '-'}</td>
                           <td className="border border-slate-300 px-3 text-center">{row.chargeWeight || '-'}</td>
                           <td className="border border-slate-300 px-3 text-center">{row.actualWeight || '-'}</td>
                           <td className="border border-slate-300 px-3 text-center">{row.volumetricWeight || '-'}</td>
@@ -1312,7 +1346,7 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
               <h2 className="text-sm font-bold text-slate-950">{isCompletedStorageOrder ? '暂存已完成详情' : '中转下单'}</h2>
               <button
                 type="button"
-                onClick={() => { setActiveStorageOrder(null); setShowStorageInstructionModal(false); setEditingStorageInstruction(null); setDeletingStorageInstruction(null); }}
+                onClick={() => { setStorageAttachments([]); setActiveStorageOrder(null); setShowStorageInstructionModal(false); setEditingStorageInstruction(null); setDeletingStorageInstruction(null); }}
                 className="rounded p-1 text-slate-700 hover:bg-slate-100"
                 aria-label="关闭"
               >
@@ -1531,6 +1565,34 @@ export default function OverseasTransitPage({ addToast, initialView = 'list', mo
                       />
                     </>
                   )}
+                </div>
+                <div className="mt-5 border-t border-slate-100 pt-4">
+                  <div className="flex items-start gap-3 text-xs">
+                    <span className="w-24 shrink-0 pt-2 text-right font-bold text-slate-900">附件上传：</span>
+                    <div className="min-w-0 flex-1">
+                      <label className="inline-flex h-8 cursor-pointer items-center rounded bg-[#004bb1] px-5 text-xs font-bold text-white hover:bg-[#003b91]">
+                        选择附件
+                        <input
+                          type="file"
+                          className="hidden"
+                          onChange={(event) => {
+                            handleStorageAttachmentFileChange(event.target.files?.[0]);
+                            event.currentTarget.value = '';
+                          }}
+                        />
+                      </label>
+                      {storageAttachments.length > 0 ? (
+                        <div className="mt-3 flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-2">
+                          <FileText className="h-4 w-4 shrink-0 text-slate-400" />
+                          <span className="min-w-0 flex-1 truncate">{storageAttachments[0].name}</span>
+                          <span className="text-slate-400">{storageAttachments[0].fileSize}</span>
+                          <button type="button" onClick={() => setStorageAttachments([])} className="font-bold text-red-500 hover:underline">删除</button>
+                        </div>
+                      ) : (
+                        <div className="mt-3 text-[11px] text-slate-400">暂未上传附件</div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </section>
 

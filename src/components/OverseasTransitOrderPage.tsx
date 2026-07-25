@@ -14,8 +14,8 @@ import {
   warehouseAddressBook,
 } from './overseasTransitAddress';
 import type { AddressFormState } from './overseasTransitAddress';
-import { cancelCreatedTransitChildOrders, confirmCreatedTransitChildOrders, getCreatedTransitChildOrders, markCreatedTransitChildOrdersAsOrdered, rollbackCreatedTransitChildOrdersToConfirmed, rollbackCreatedTransitChildOrdersToOrdered, rollbackSignedCreatedTransitChildOrdersToTransit, shipCreatedTransitChildOrders, signCreatedTransitChildOrders, subscribeOverseasTransitFlow, updateCreatedTransitChildOrderInstructions } from './overseasTransitFlow';
-import type { CreatedTransitChildOrder, CreatedTransitInstruction, OverseasWarehouseArrivalStatus, TransitReconciliationStatus } from './overseasTransitFlow';
+import { cancelCreatedTransitChildOrders, confirmCreatedTransitChildOrders, getCreatedTransitChildOrders, markCreatedTransitChildOrdersAsOrdered, rejectCreatedTransitChildOrders, rollbackCreatedTransitChildOrdersToConfirmed, rollbackCreatedTransitChildOrdersToOrdered, rollbackSignedCreatedTransitChildOrdersToTransit, shipCreatedTransitChildOrders, signCreatedTransitChildOrders, subscribeOverseasTransitFlow, updateCreatedTransitChildOrderInstructions } from './overseasTransitFlow';
+import type { CreatedTransitAttachment, CreatedTransitChildOrder, CreatedTransitInstruction, OverseasWarehouseArrivalStatus, TransitReconciliationStatus } from './overseasTransitFlow';
 
 interface OverseasTransitOrderPageProps {
   addToast: (msg: string, type: 'success' | 'info' | 'warning') => void;
@@ -45,6 +45,7 @@ interface OverseasTransitRow {
   warehouseCode?: string;
   zipCode?: string;
   orderType?: string;
+  deliveryMethod?: string;
   addressForm?: AddressFormState;
   instructions?: CreatedTransitInstruction[];
   reconciliationStatus?: TransitReconciliationStatus;
@@ -57,6 +58,7 @@ interface OverseasTransitRow {
   volume: string;
   inboundTime: string;
   boxNumbers?: string[];
+  attachments?: CreatedTransitAttachment[];
 }
 
 interface TransitTransferRow {
@@ -66,9 +68,14 @@ interface TransitTransferRow {
   transferNo: string;
 }
 
-const overseasTransitNodes = ['待确认', '已确认', '已下单', '转运中', '签收', '取消'];
+const overseasTransitNodes = ['待确认', '已确认', '已下单', '转运中', '签收', '驳回', '取消'];
 // 已确认详情与已下单共用运单详情二级页签；仅待确认保留可编辑的下单表单。
-const orderFormStatuses = new Set(['待确认']);
+const orderFormStatuses = new Set(['待确认', '驳回']);
+
+const getOrderDeliveryMethod = (row: OverseasTransitRow) =>
+  row.addressForm?.deliveryMethod
+  || row.deliveryMethod
+  || (row.channel.includes('卡') ? '卡车派送' : '快递派送');
 
 const getMockContainerNo = (source: string) =>
   'MSCU' + source.replace(/\D/g, '').slice(-7).padStart(7, '0');
@@ -519,7 +526,7 @@ const makeMockTransitRow = (status: string, index: number): OverseasTransitRow =
   const headNo = `YT2507${String(statusIndex + 20).padStart(2, '0')}${String(Math.floor(index / 3) + 1).padStart(4, '0')}`;
   const createdDay = 10 + (index % 4);
   const sequence = (index % 3) + 1;
-  const carrierCode = status === '取消' ? 'CXL' : status === '签收' ? 'POD' : status === '转运中' ? 'TRN' : status === '已下单' ? 'ORD' : status === '已确认' ? 'CFM' : 'WAT';
+  const carrierCode = status === '取消' ? 'CXL' : status === '驳回' ? 'REJ' : status === '签收' ? 'POD' : status === '转运中' ? 'TRN' : status === '已下单' ? 'ORD' : status === '已确认' ? 'CFM' : 'WAT';
   const warehouseCode = overseasWarehouseCodes[index % overseasWarehouseCodes.length];
   const warehouseAddress = warehouseAddressBook[warehouseCode];
 
@@ -554,9 +561,9 @@ const transitRows: OverseasTransitRow[] = [
     return Array.from({ length: Math.max(0, 10 - existingCount) }, (_, index) => makeMockTransitRow(status, existingCount + index));
   }),
 ].map((row) => {
-  const hasOrdered = row.status === '已下单' || row.status === '转运中' || row.status === '签收';
-  const hasOutbound = row.status === '转运中' || row.status === '签收';
-  const hasSigned = row.status === '签收';
+  const hasOrdered = row.status === '已下单' || row.status === '转运中' || row.status === '签收' || row.status === '驳回';
+  const hasOutbound = row.status === '转运中' || row.status === '签收' || row.status === '驳回';
+  const hasSigned = row.status === '签收' || row.status === '驳回';
 
   return {
     ...row,
@@ -605,7 +612,7 @@ type ExpressCreationRecord = {
 };
 
 type IdentifierSearchKey = 'inboundNo' | 'shipmentId' | 'referenceId';
-type OrderFilterKey = IdentifierSearchKey | 'overseasWarehouseArrivalStatus' | 'reconciliationStatus';
+type OrderFilterKey = IdentifierSearchKey | 'overseasWarehouseArrivalStatus' | 'reconciliationStatus' | 'deliveryMethod';
 type ConfirmedOrderSubmissionCheck = 'reconciliation' | 'arrival';
 
 type OrderSearchField = {
@@ -616,13 +623,14 @@ type OrderSearchField = {
   searchKey?: LifecycleTimeKey | OrderFilterKey;
 };
 
-const orderFilterKeys: OrderFilterKey[] = ['inboundNo', 'shipmentId', 'referenceId', 'overseasWarehouseArrivalStatus', 'reconciliationStatus'];
+const orderFilterKeys: OrderFilterKey[] = ['inboundNo', 'shipmentId', 'referenceId', 'overseasWarehouseArrivalStatus', 'reconciliationStatus', 'deliveryMethod'];
 const emptyOrderFilterValues: Record<OrderFilterKey, string> = {
   inboundNo: '',
   shipmentId: '',
   referenceId: '',
   overseasWarehouseArrivalStatus: '',
   reconciliationStatus: '',
+  deliveryMethod: '',
 };
 
 const matchesOrderFilterQuery = (value: string | undefined, query: string) => {
@@ -650,6 +658,7 @@ const baseOrderSearchFields: OrderSearchField[] = [
   { label: '核销状态', type: 'select', options: ['已核销', '未核销', '部分核销'], searchKey: 'reconciliationStatus' },
   { label: '客户简称', type: 'select', options: ['深圳天图电子有限公司', '博创跨境贸易', '广州跨境供应链'] },
   { label: '仓库代码', type: 'select', options: overseasWarehouseCodes },
+  { label: '派送方式', type: 'select', options: overseasDeliveryMethods, searchKey: 'deliveryMethod' },
   { label: '业务员', type: 'select', options: ['安一', '天朗'] },
   { label: '跟单员', type: 'select', options: ['安逸', '李客服'] },
   { label: '入仓时间', type: 'select', options: ['今日', '本周', '本月'] },
@@ -668,6 +677,7 @@ const fullOrderSearchFields: OrderSearchField[] = [
   { label: '客户简称', type: 'select', options: ['深圳天图电子有限公司', '博创跨境贸易', '广州跨境供应链'] },
   { label: '仓库代码', type: 'select', options: overseasWarehouseCodes },
   { label: '下单类型', type: 'select', options: overseasOrderTypes },
+  { label: '派送方式', type: 'select', options: overseasDeliveryMethods, searchKey: 'deliveryMethod' },
   { label: '业务员', type: 'select', options: ['安一', '天朗'] },
   { label: '跟单员', type: 'select', options: ['安逸', '李客服'] },
   { label: '入仓时间', type: 'select', options: ['今日', '本周', '本月'] },
@@ -761,7 +771,7 @@ type InstructionFeeRow = (typeof instructionFeeRows)[number] & {
   addedBy?: string;
 };
 type QuoteFeeRow = (typeof quoteFeeRows)[number];
-type AttachmentRow = (typeof attachmentRows)[number];
+type AttachmentRow = (typeof attachmentRows)[number] & { file?: File };
 
 const getReconciliationStatus = (row: Pick<OverseasTransitRow, 'reconciliationStatus'>): TransitReconciliationStatus =>
   row.reconciliationStatus || '未核销';
@@ -812,7 +822,7 @@ type AttachmentFormState = {
   customerVisible: '可见' | '不可见';
 };
 
-const attachmentTypeOptions = ['POD', 'ISA', '报关资料', '底单', '其他', '税金单', '递延资料', '提单'];
+const attachmentTypeOptions = ['POD', 'ISA', '报关资料', '底单', '其他', '其它', '税金单', '递延资料', '提单'];
 const emptyAttachmentForm: AttachmentFormState = {
   fileName: '',
   fileSize: '',
@@ -915,13 +925,14 @@ const getOrderKey = (row: OverseasTransitRow) => getOverseasWaybillNo(row);
 const isCreatedTransitChildOrder = (row: OverseasTransitRow): row is CreatedTransitChildOrder => 'parentHeadWaybillNo' in row;
 
 const getParentStorageAddressForm = (row: OverseasTransitRow): AddressFormState => {
-  if (row.addressForm) return { ...emptyAddressForm, ...row.addressForm };
+  if (row.addressForm) return { ...emptyAddressForm, ...row.addressForm, deliveryMethod: getOrderDeliveryMethod(row) };
   const warehouseCode = (row.warehouseCode || '').trim().toUpperCase();
   const warehouseAddress = warehouseAddressBook[warehouseCode];
 
   return {
     ...emptyAddressForm,
     orderType: row.orderType || 'FBA',
+    deliveryMethod: getOrderDeliveryMethod(row),
     warehouseCode,
     ...(warehouseAddress || {}),
     zipCode: row.zipCode || warehouseAddress?.zipCode || '',
@@ -1537,6 +1548,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
   const [quoteRowsByOrder, setQuoteRowsByOrder] = useState<Record<string, QuoteFeeRow[]>>({});
   const [quoteLogsByOrder, setQuoteLogsByOrder] = useState<Record<string, OrderLogRow[]>>({});
   const [attachmentRowsByOrder, setAttachmentRowsByOrder] = useState<Record<string, AttachmentRow[]>>({});
+  const [addressAttachmentsByOrder, setAddressAttachmentsByOrder] = useState<Record<string, AttachmentRow[]>>({});
   const [trackingRowsByOrder, setTrackingRowsByOrder] = useState<Record<string, TrackingEvent[]>>({});
   const [showTrackingModal, setShowTrackingModal] = useState(false);
   const [trackingForm, setTrackingForm] = useState<TrackingFormState>(emptyTrackingForm);
@@ -1562,13 +1574,16 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
     status: statusOverridesByOrder[getOrderKey(row)] || row.status,
     ...lifecycleTimeOverridesByOrder[getOrderKey(row)],
   }));
-  const allRows: OverseasTransitRow[] = [...displayedSeedRows, ...createdTransitRows];
+  const allRows: OverseasTransitRow[] = [...displayedSeedRows, ...createdTransitRows].map((row) => ({
+    ...row,
+    deliveryMethod: addressFormsByOrder[getOrderKey(row)]?.deliveryMethod || getOrderDeliveryMethod(row),
+  }));
   const expressWorkspaceRows = allRows.filter((row) => expressOrderKeys.includes(getOrderKey(row)) && row.status === '已确认');
   const activeLifecycleTimeConfig = lifecycleTimeConfigByStatus[activeTab];
   const activeLifecycleDateFilter = activeLifecycleTimeConfig
     ? appliedLifecycleDateFilters[activeLifecycleTimeConfig.key]?.trim()
     : '';
-  const showOverseasWarehouseArrivalStatus = activeTab === '待确认' || activeTab === '已确认' || activeTab === '已下单';
+  const showOverseasWarehouseArrivalStatus = activeTab === '待确认' || activeTab === '已确认' || activeTab === '已下单' || activeTab === '驳回';
   const activeOrderFilterKeys = showOverseasWarehouseArrivalStatus
     ? orderFilterKeys
     : orderFilterKeys.filter((key) => key !== 'overseasWarehouseArrivalStatus');
@@ -1586,10 +1601,10 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
   const signedRollbackConfirmRows = allRows.filter((row) => signedRollbackConfirmOrderKeys.includes(getOrderKey(row)) && row.status === '签收');
   const usesOrderFormTemplate = (status: string) => orderFormStatuses.has(status);
   const showOverseasWaybillNo = true;
-  const orderTableColumnCount = (showOverseasWaybillNo ? 21 : 17) + (activeLifecycleTimeConfig ? 1 : 0) + 5 + (showOverseasWarehouseArrivalStatus ? 1 : 0);
+  const orderTableColumnCount = (showOverseasWaybillNo ? 21 : 17) + (activeLifecycleTimeConfig ? 1 : 0) + 6 + (showOverseasWarehouseArrivalStatus ? 1 : 0);
   const orderTableMinWidthClass = showOverseasWaybillNo
-    ? (activeLifecycleTimeConfig ? 'min-w-[3800px]' : showOverseasWarehouseArrivalStatus ? 'min-w-[3760px]' : 'min-w-[3640px]')
-    : (activeLifecycleTimeConfig ? 'min-w-[3320px]' : showOverseasWarehouseArrivalStatus ? 'min-w-[3280px]' : 'min-w-[3160px]');
+    ? (activeLifecycleTimeConfig ? 'min-w-[3920px]' : showOverseasWarehouseArrivalStatus ? 'min-w-[3880px]' : 'min-w-[3760px]')
+    : (activeLifecycleTimeConfig ? 'min-w-[3440px]' : showOverseasWarehouseArrivalStatus ? 'min-w-[3400px]' : 'min-w-[3280px]');
   const commonOrderSearchFields = showOverseasWaybillNo ? fullOrderSearchFields : baseOrderSearchFields;
   const orderSearchFields: OrderSearchField[] = [
     ...commonOrderSearchFields,
@@ -1605,7 +1620,10 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
   const activeInstructionRows = activeOrder ? getInstructionRowsForOrder(activeOrder) : [];
   const activeQuoteRows = activeOrder ? (quoteRowsByOrder[activeOrderKey] || quoteFeeRows) : [];
   const canEditQuoteFees = !!activeOrder && quoteEditableStatuses.has(activeOrder.status);
-  const activeAttachmentRows = activeOrder ? (attachmentRowsByOrder[activeOrderKey] || attachmentRows) : [];
+  const activeAttachmentRows = activeOrder
+    ? [...(attachmentRowsByOrder[activeOrderKey] || attachmentRows), ...(activeOrder.attachments || []), ...(addressAttachmentsByOrder[activeOrderKey] || [])]
+    : [];
+  const activeAddressAttachments = activeOrder ? (addressAttachmentsByOrder[activeOrderKey] || []) : [];
   const activeTrackingRows = activeOrder ? (trackingRowsByOrder[activeOrderKey] || getDefaultTrackingRows(activeOrder)) : [];
 
   useEffect(() => subscribeOverseasTransitFlow(() => setCreatedTransitRows(getCreatedTransitChildOrders())), []);
@@ -1701,6 +1719,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
       referenceId: searchValues.referenceId?.trim() || '',
       overseasWarehouseArrivalStatus: searchValues.overseasWarehouseArrivalStatus || '',
       reconciliationStatus: searchValues.reconciliationStatus || '',
+      deliveryMethod: searchValues.deliveryMethod || '',
     });
     addToast('已查询海外中转单数据', 'success');
   };
@@ -1746,6 +1765,35 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
 
     clearSelectedCurrentRows(rows);
     addToast(`已取消 ${rows.length} 条待确认子单，返回状态：取消；已取消子单箱号回流至母单`, 'success');
+  };
+
+  const rejectPendingOrders = () => {
+    if (activeTab !== '待确认') return;
+    const rows = getSelectedCurrentRows();
+    if (rows.length === 0) { addToast('请先勾选需要驳回的待确认子单', 'warning'); return; }
+
+    const createdOrderIds = rows.filter(isCreatedTransitChildOrder).map((row) => row.id);
+    const seedOrderKeys = rows.filter((row) => !isCreatedTransitChildOrder(row)).map(getOrderKey);
+
+    if (createdOrderIds.length > 0) rejectCreatedTransitChildOrders(createdOrderIds);
+    if (seedOrderKeys.length > 0) {
+      setStatusOverridesByOrder((prev) => seedOrderKeys.reduce((next, key) => ({ ...next, [key]: '驳回' }), { ...prev }));
+    }
+
+    rows.forEach((row) => appendQuoteLog(getOrderKey(row), {
+      operatedAt: formatDateTime(),
+      operator: '天朗（付豪）',
+      action: '驳回海外中转单',
+      field: '状态 / 子单箱号',
+      before: '待确认',
+      after: '驳回 / 回流母单',
+      note: row.boxNumbers?.length
+        ? `子单箱号 ${row.boxNumbers.join('、')} 已回流至母单`
+        : '子单状态已驳回，关联数据已回流至母单',
+    }));
+
+    clearSelectedCurrentRows(rows);
+    addToast(`已驳回 ${rows.length} 条待确认子单，状态已流转至驳回；子单数据已回流至母单`, 'success');
   };
 
   const confirmPendingOrders = () => {
@@ -2217,6 +2265,44 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
     }));
   };
 
+  const handleAddressAttachmentFileChange = (file?: File) => {
+    if (!file || !activeOrderKey) return;
+    const sizeInMb = file.size / 1024 / 1024;
+    const attachment: AttachmentRow = {
+      id: `ADDR-${Date.now()}`,
+      name: file.name,
+      type: '其它',
+      customerVisible: '可见',
+      uploadedAt: formatDateTime(),
+      uploadedBy: '天朗（付豪）',
+      fileSize: sizeInMb >= 1 ? `${sizeInMb.toFixed(1)}MB` : `${Math.max(1, Math.round(file.size / 1024))}KB`,
+      file,
+    };
+    setAddressAttachmentsByOrder((prev) => ({ ...prev, [activeOrderKey]: [attachment] }));
+    addToast('附件已选择，下单后可在子单其它信息中下载', 'info');
+  };
+
+  const removeAddressAttachment = () => {
+    if (!activeOrderKey) return;
+    setAddressAttachmentsByOrder((prev) => ({ ...prev, [activeOrderKey]: [] }));
+  };
+
+  const downloadAttachment = (row: AttachmentRow) => {
+    if (!row.file) {
+      addToast(`正在下载 ${row.name}`, 'info');
+      return;
+    }
+    const url = URL.createObjectURL(row.file);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = row.name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    addToast(`已下载 ${row.name}`, 'success');
+  };
+
   const saveAttachment = () => {
     if (!activeOrder) return;
     if (!attachmentForm.fileName) {
@@ -2577,6 +2663,14 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
               </button>
               <button
                 type="button"
+                title="支持批量驳回；驳回后状态流转至驳回，子单数据重新回到母单"
+                onClick={rejectPendingOrders}
+                className="rounded bg-[#004bb1] px-7 py-2 text-xs font-bold text-white hover:bg-[#003b91]"
+              >
+                驳回
+              </button>
+              <button
+                type="button"
                 title="支持批量已确认；确认后子单由待确认流转至已确认"
                 onClick={confirmPendingOrders}
                 className="rounded bg-[#004bb1] px-7 py-2 text-xs font-bold text-white hover:bg-[#003b91]"
@@ -2691,6 +2785,18 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                 查看日志
               </button>
             </>
+          ) : activeTab === '驳回' ? (
+            <>
+              <button type="button" onClick={() => addToast('驳回状态的海外中转单已保存', 'success')} className="rounded bg-[#004bb1] px-7 py-2 text-xs font-bold text-white hover:bg-[#003b91]">
+                保存
+              </button>
+              <button type="button" onClick={() => addToast('导出海外中转单功能为展示', 'info')} className="rounded bg-[#004bb1] px-7 py-2 text-xs font-bold text-white hover:bg-[#003b91]">
+                导出
+              </button>
+              <button type="button" onClick={() => openLog()} className="rounded bg-[#004bb1] px-7 py-2 text-xs font-bold text-white hover:bg-[#003b91]">
+                查看日志
+              </button>
+            </>
           ) : activeTab === '取消' ? (
             <>
               <button type="button" onClick={() => addToast('导出海外中转单功能为展示', 'info')} className="rounded bg-[#004bb1] px-7 py-2 text-xs font-bold text-white hover:bg-[#003b91]">
@@ -2747,6 +2853,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                 <th className="w-28 border border-slate-200 px-3 py-2 text-center">仓库代码</th>
                 {showOverseasWaybillNo && <th className="w-24 border border-slate-200 px-3 py-2 text-center">邮编</th>}
                 {showOverseasWaybillNo && <th className="w-28 border border-slate-200 px-3 py-2 text-center">下单类型</th>}
+                <th className="w-28 border border-slate-200 px-3 py-2 text-center">派送方式</th>
                 <th className="w-20 border border-slate-200 px-3 py-2 text-center">目的地</th>
                 <th className="w-28 border border-slate-200 px-3 py-2 text-center">核销状态</th>
                 <th className="w-72 border border-slate-200 px-3 py-2 text-center">指令费用</th>
@@ -2794,6 +2901,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                   <td className="border border-slate-200 px-3 text-center font-mono">{row.warehouseCode || '-'}</td>
                   {showOverseasWaybillNo && <td className="border border-slate-200 px-3 text-center font-mono">{row.zipCode || '-'}</td>}
                   {showOverseasWaybillNo && <td className="border border-slate-200 px-3 text-center">{row.orderType || '-'}</td>}
+                  <td className="border border-slate-200 px-3 text-center">{row.deliveryMethod || '-'}</td>
                   <td className="border border-slate-200 px-3 text-center">{row.destination}</td>
                   <td className="border border-slate-200 px-3 text-center">
                     <ReconciliationStatusBadge status={getReconciliationStatus(row)} />
@@ -2830,7 +2938,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
         <div className="fixed inset-0 z-50 bg-black/55">
           <div className="absolute right-0 top-0 flex h-full w-[66vw] min-w-[980px] flex-col bg-slate-50 shadow-2xl">
             <div className="flex h-11 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-9">
-              <h2 className="text-sm font-bold text-slate-950">{usesOrderFormTemplate(activeOrder.status) ? '中转下单' : '确认运单信息'}</h2>
+              <h2 className="text-sm font-bold text-slate-950">{activeOrder.status === '驳回' ? '驳回单详情' : usesOrderFormTemplate(activeOrder.status) ? '中转下单' : '确认运单信息'}</h2>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => { setEditingOrderFormKey(null); setAddressFormSnapshotsByOrder({}); setActiveOrder(null); }} className="rounded p-1 text-slate-700 hover:bg-slate-100" aria-label="关闭">
                   <X className="h-5 w-5" />
@@ -3028,6 +3136,35 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                         disabled={!isOrderFormEditing}
                         onChange={(value) => updateAddressField('overseasWarehouseRemark', value)}
                       />
+                    </div>
+                    <div className="mt-5 border-t border-slate-100 pt-4">
+                      <div className="flex items-start gap-3 text-xs">
+                        <span className="w-24 shrink-0 pt-2 text-right font-bold text-slate-900">附件上传：</span>
+                        <div className="min-w-0 flex-1">
+                          <label className="inline-flex h-8 cursor-pointer items-center rounded bg-[#004bb1] px-5 text-xs font-bold text-white hover:bg-[#003b91]">
+                            选择附件
+                            <input
+                              type="file"
+                              className="hidden"
+                              onChange={(event) => {
+                                handleAddressAttachmentFileChange(event.target.files?.[0]);
+                                event.currentTarget.value = '';
+                              }}
+                            />
+                          </label>
+                          {activeAddressAttachments.length > 0 ? (
+                            <div className="mt-3 flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-2">
+                              <FileText className="h-4 w-4 shrink-0 text-slate-400" />
+                              <span className="min-w-0 flex-1 truncate">{activeAddressAttachments[0].name}</span>
+                              <span className="text-slate-400">{activeAddressAttachments[0].fileSize}</span>
+                              <button type="button" onClick={() => downloadAttachment(activeAddressAttachments[0])} className="font-bold text-[#004bb1] hover:underline">下载</button>
+                              <button type="button" onClick={removeAddressAttachment} className="font-bold text-red-500 hover:underline">删除</button>
+                            </div>
+                          ) : (
+                            <div className="mt-3 text-[11px] text-slate-400">暂未上传附件</div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </section>
 
@@ -3326,7 +3463,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                                       </button>
                                       <button
                                         type="button"
-                                        onClick={() => addToast(`正在下载 ${row.name}`, 'info')}
+                                        onClick={() => downloadAttachment(row)}
                                         className="mr-3 font-bold text-[#004bb1] hover:underline"
                                       >
                                         下载
