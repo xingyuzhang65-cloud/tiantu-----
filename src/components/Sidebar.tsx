@@ -432,6 +432,25 @@ export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProp
             </div>
           )}
 
+          {activeRail === '询价' && (
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-700">
+                <MessageSquareCode className="h-4 w-4 text-blue-600" />
+                <span>美国询价</span>
+              </div>
+              {['价格查询', '询价列表', '报价列表', '报价配置', '用户询价列表', '询价复核', '询价托盘'].map((name) => (
+                <button
+                  key={name}
+                  id={`submenu-item-${name}`}
+                  onClick={() => onSubViewChange(name)}
+                  className={`flex w-full items-center rounded px-7 py-2 text-xs transition-colors ${currentSubView === name ? 'bg-blue-50 font-semibold text-blue-600' : 'text-slate-600 hover:bg-slate-200/50'}`}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          )}
+
           {activeRail === '营销' && (
             <div className='space-y-1'>
               <div className='flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-700'>
@@ -446,7 +465,7 @@ export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProp
           )}
 
           {/* Fallback for other rails without a configured submenu */}
-          {activeRail !== '单据' && activeRail !== '产品' && activeRail !== '仓库' && activeRail !== '管理' && activeRail !== '营销' && (
+          {activeRail !== '单据' && activeRail !== '产品' && activeRail !== '仓库' && activeRail !== '管理' && activeRail !== '营销' && activeRail !== '询价' && (
             <div className="px-3 py-4 text-center text-xs text-slate-400">
               暂无子菜单
             </div>

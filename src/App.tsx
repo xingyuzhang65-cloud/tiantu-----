@@ -12,6 +12,7 @@ import OverseasTransitOrderPage from './components/OverseasTransitOrderPage';
 import ExpressOrderPage from './components/ExpressOrderPage';
 import UserManagementPage from './components/UserManagementPage';
 import MarketingDashboardPage from './components/MarketingDashboardPage';
+import PriceInquiryPage from './components/PriceInquiryPage';
 import { Waybill, OrderType, WaybillChangeLog } from './types';
 import { Settings, HelpCircle, Layers, ShieldCheck, Mail, Phone, Calendar } from 'lucide-react';
 
@@ -496,6 +497,19 @@ export default function App() {
       return w;
     }));
   };
+
+  if (currentTab === '价格查询' || currentTab === '询价列表') {
+    return (
+      <PriceInquiryPage
+        activeView={currentTab === '询价列表' ? '询价列表' : '价格查询'}
+        onNavigate={(view) => {
+          setCurrentSubView(view);
+          setCurrentTab(view);
+          if (!openTabs.includes(view)) setOpenTabs((prev) => [...prev, view]);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-100">
