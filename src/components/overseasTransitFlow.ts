@@ -14,7 +14,7 @@ export type CreatedTransitInstruction = {
 };
 
 export type TransitReconciliationStatus = '已核销' | '未核销' | '部分核销';
-export type OverseasWarehouseArrivalStatus = '是' | '否';
+export type OverseasWarehouseArrivalStatus = '是' | '否' | '放货' | '不放货' | '销毁' | '驳回';
 export type CreatedTransitAttachment = {
   id: string;
   name: string;

@@ -614,6 +614,7 @@ type ExpressCreationRecord = {
 type IdentifierSearchKey = 'inboundNo' | 'shipmentId' | 'referenceId';
 type OrderFilterKey = IdentifierSearchKey | 'overseasWarehouseArrivalStatus' | 'reconciliationStatus' | 'deliveryMethod';
 type ConfirmedOrderSubmissionCheck = 'reconciliation' | 'arrival';
+type ReleaseOrderType = '放货' | '不放货' | '销毁';
 
 type OrderSearchField = {
   label: string;
@@ -676,7 +677,7 @@ const fullOrderSearchFields: OrderSearchField[] = [
   { label: '核销状态', type: 'select', options: ['已核销', '未核销', '部分核销'], searchKey: 'reconciliationStatus' },
   { label: '客户简称', type: 'select', options: ['深圳天图电子有限公司', '博创跨境贸易', '广州跨境供应链'] },
   { label: '仓库代码', type: 'select', options: overseasWarehouseCodes },
-  { label: '下单类型', type: 'select', options: overseasOrderTypes },
+  { label: '运单类型', type: 'select', options: overseasOrderTypes },
   { label: '派送方式', type: 'select', options: overseasDeliveryMethods, searchKey: 'deliveryMethod' },
   { label: '业务员', type: 'select', options: ['安一', '天朗'] },
   { label: '跟单员', type: 'select', options: ['安逸', '李客服'] },
@@ -684,9 +685,9 @@ const fullOrderSearchFields: OrderSearchField[] = [
 ];
 
 const overseasWarehouseArrivalSearchField: OrderSearchField = {
-  label: '是否到达海外仓',
+  label: '下单类型',
   type: 'select',
-  options: ['是', '否'],
+  options: ['放货', '不放货', '销毁'],
   searchKey: 'overseasWarehouseArrivalStatus',
 };
 
@@ -776,8 +777,12 @@ type AttachmentRow = (typeof attachmentRows)[number] & { file?: File };
 const getReconciliationStatus = (row: Pick<OverseasTransitRow, 'reconciliationStatus'>): TransitReconciliationStatus =>
   row.reconciliationStatus || '未核销';
 
-const getOverseasWarehouseArrivalStatus = (row: Pick<OverseasTransitRow, 'overseasWarehouseArrivalStatus'>): OverseasWarehouseArrivalStatus =>
-  row.overseasWarehouseArrivalStatus || '否';
+const getReleaseOrderType = (row: Pick<OverseasTransitRow, 'overseasWarehouseArrivalStatus' | 'status'>): ReleaseOrderType => {
+  if (row.status === '驳回') return '不放货';
+  if (row.overseasWarehouseArrivalStatus === '否' || row.overseasWarehouseArrivalStatus === '不放货' || row.overseasWarehouseArrivalStatus === '驳回') return '不放货';
+  if (row.overseasWarehouseArrivalStatus === '销毁') return '销毁';
+  return '放货';
+};
 
 const reconciliationStatusStyles: Record<TransitReconciliationStatus, { badge: string; fee: string }> = {
   已核销: { badge: 'bg-emerald-50 text-emerald-600', fee: 'text-emerald-600' },
@@ -785,9 +790,10 @@ const reconciliationStatusStyles: Record<TransitReconciliationStatus, { badge: s
   部分核销: { badge: 'bg-blue-50 text-blue-600', fee: 'text-blue-600' },
 };
 
-const overseasWarehouseArrivalStatusStyles: Record<OverseasWarehouseArrivalStatus, string> = {
-  是: 'bg-emerald-50 text-emerald-600',
-  否: 'bg-yellow-50 text-yellow-600',
+const releaseOrderTypeStyles: Record<ReleaseOrderType, string> = {
+  放货: 'bg-emerald-50 text-emerald-600',
+  不放货: 'bg-yellow-50 text-yellow-600',
+  销毁: 'bg-rose-50 text-rose-600',
 };
 
 type TrackingEvent = {
@@ -1235,7 +1241,7 @@ function ExpressOrderCreationWorkspace({
                     <th className="w-64 border border-slate-200 px-3 py-2 text-center">收件人 / 地址</th>
                     <th className="w-24 border border-slate-200 px-3 py-2 text-center">邮编</th>
                     <th className="w-24 border border-slate-200 px-3 py-2 text-center">箱数 / 实重</th>
-                    <th className="w-24 border border-slate-200 px-3 py-2 text-center">下单类型</th>
+                    <th className="w-24 border border-slate-200 px-3 py-2 text-center">运单类型</th>
                     <th className="w-40 border border-slate-200 px-3 py-2 text-center">尾程渠道</th>
                     <th className="w-32 border border-slate-200 px-3 py-2 text-center">打单平台</th>
                     <th className="w-44 border border-slate-200 px-3 py-2 text-center">发货账号 / 服务</th>
@@ -1343,10 +1349,10 @@ function ReconciliationStatusBadge({ status }: { status: TransitReconciliationSt
   );
 }
 
-function OverseasWarehouseArrivalBadge({ status }: { status: OverseasWarehouseArrivalStatus }) {
+function ReleaseOrderTypeBadge({ type }: { type: ReleaseOrderType }) {
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold ${overseasWarehouseArrivalStatusStyles[status]}`}>
-      {status}
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold ${releaseOrderTypeStyles[type]}`}>
+      {type}
     </span>
   );
 }
@@ -1592,7 +1598,10 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
     && (!activeLifecycleTimeConfig
       || !activeLifecycleDateFilter
       || row[activeLifecycleTimeConfig.key]?.slice(0, 10) === activeLifecycleDateFilter)
-    && activeOrderFilterKeys.every((key) => matchesOrderFilterQuery(row[key], appliedOrderFilters[key]))
+    && activeOrderFilterKeys.every((key) => matchesOrderFilterQuery(
+      key === 'overseasWarehouseArrivalStatus' ? getReleaseOrderType(row) : row[key],
+      appliedOrderFilters[key],
+    ))
   ));
   const cancelConfirmRows = allRows.filter((row) => cancelConfirmOrderKeys.includes(getOrderKey(row)) && row.status === '已确认');
   const confirmedOrderSubmissionRows = allRows.filter((row) => confirmedOrderSubmissionKeys.includes(getOrderKey(row)) && row.status === '已确认');
@@ -1932,7 +1941,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
       setConfirmedOrderSubmissionCheck('reconciliation');
       return;
     }
-    if (rows.some((row) => getOverseasWarehouseArrivalStatus(row) === '否')) {
+    if (rows.some((row) => getReleaseOrderType(row) !== '放货')) {
       setConfirmedOrderSubmissionCheck('arrival');
       return;
     }
@@ -1950,7 +1959,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
 
     if (
       confirmedOrderSubmissionCheck === 'reconciliation'
-      && rows.some((row) => getOverseasWarehouseArrivalStatus(row) === '否')
+      && rows.some((row) => getReleaseOrderType(row) !== '放货')
     ) {
       setConfirmedOrderSubmissionCheck('arrival');
       return;
@@ -2852,7 +2861,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                 <th className="w-44 border border-slate-200 px-3 py-2 text-center">客户简称</th>
                 <th className="w-28 border border-slate-200 px-3 py-2 text-center">仓库代码</th>
                 {showOverseasWaybillNo && <th className="w-24 border border-slate-200 px-3 py-2 text-center">邮编</th>}
-                {showOverseasWaybillNo && <th className="w-28 border border-slate-200 px-3 py-2 text-center">下单类型</th>}
+                {showOverseasWaybillNo && <th className="w-28 border border-slate-200 px-3 py-2 text-center">运单类型</th>}
                 <th className="w-28 border border-slate-200 px-3 py-2 text-center">派送方式</th>
                 <th className="w-20 border border-slate-200 px-3 py-2 text-center">目的地</th>
                 <th className="w-28 border border-slate-200 px-3 py-2 text-center">核销状态</th>
@@ -2864,7 +2873,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                 <th className="w-24 border border-slate-200 px-3 py-2 text-center">发货件数</th>
                 <th className="w-24 border border-slate-200 px-3 py-2 text-center">重量</th>
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">方数</th>
-                {showOverseasWarehouseArrivalStatus && <th className="w-28 border border-slate-200 px-3 py-2 text-center">是否到达海外仓</th>}
+                {showOverseasWarehouseArrivalStatus && <th className="w-28 border border-slate-200 px-3 py-2 text-center">下单类型</th>}
                 <th className="w-36 border border-slate-200 px-3 py-2 text-center">入仓时间（海外仓）</th>
 
               </tr>
@@ -2916,7 +2925,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                   <td className="border border-slate-200 px-3 text-center">{row.volume}</td>
                   {showOverseasWarehouseArrivalStatus && (
                     <td className="border border-slate-200 px-3 text-center">
-                      <OverseasWarehouseArrivalBadge status={getOverseasWarehouseArrivalStatus(row)} />
+                      <ReleaseOrderTypeBadge type={getReleaseOrderType(row)} />
                     </td>
                   )}
                   <td className="border border-slate-200 px-3 text-center font-mono text-slate-500">{row.inboundTime}</td>
@@ -2971,8 +2980,8 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                       <ReconciliationStatusBadge status={getReconciliationStatus(activeOrder)} />
                     </div>
                     <div>
-                      <span className="font-bold text-slate-900">是否到达海外仓：</span>
-                      <OverseasWarehouseArrivalBadge status={getOverseasWarehouseArrivalStatus(activeOrder)} />
+                      <span className="font-bold text-slate-900">下单类型：</span>
+                      <ReleaseOrderTypeBadge type={getReleaseOrderType(activeOrder)} />
                     </div>
                     <div>
                       <span className="font-bold text-slate-900">柜号：</span>
@@ -3009,7 +3018,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                       )}
                     </div>
                     <div className="grid grid-cols-2 gap-x-16 gap-y-4">
-                      <FormRow label="下单类型" requiredMark>
+                      <FormRow label="运单类型" requiredMark>
                         <select
                           className={fieldClass}
                           value={addressForm.orderType}
@@ -3177,7 +3186,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                       <DetailField label="海外仓运单号" highlight>{getOverseasWaybillNo(activeOrder)}</DetailField>
                       <DetailField label="客户简称">{activeOrder.customerName}</DetailField>
                       <DetailField label="目的地">{activeOrder.destination}</DetailField>
-                      <DetailField label="下单类型">{activeOrder.orderType || '-'}</DetailField>
+                      <DetailField label="运单类型">{activeOrder.orderType || '-'}</DetailField>
                       <DetailField label="仓库代码">{activeOrder.warehouseCode || '-'}</DetailField>
                       <DetailField label="FBA单号">{activeOrder.fbaCode}</DetailField>
                       <DetailField label="入仓号">{activeOrder.inboundNo || '-'}</DetailField>
@@ -3185,7 +3194,7 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
                       <DetailField label="Reference ID">{activeOrder.referenceId || '-'}</DetailField>
                       <DetailField label="核销状态"><ReconciliationStatusBadge status={getReconciliationStatus(activeOrder)} /></DetailField>
                       {(activeOrder.status === '已确认' || activeOrder.status === '已下单') && (
-                        <DetailField label="是否到达海外仓"><OverseasWarehouseArrivalBadge status={getOverseasWarehouseArrivalStatus(activeOrder)} /></DetailField>
+                        <DetailField label="下单类型"><ReleaseOrderTypeBadge type={getReleaseOrderType(activeOrder)} /></DetailField>
                       )}
                       <DetailField label="柜号">{activeOrder.containerNo || '-'}</DetailField>
                       <DetailField label="提单号">{activeOrder.billOfLadingNo || '-'}</DetailField>
@@ -4308,13 +4317,13 @@ export default function OverseasTransitOrderPage({ addToast, activeNode = '待�
           <div className="w-[500px] rounded bg-white shadow-2xl">
             <div className="border-b border-slate-200 px-5 py-4">
               <h3 className="text-sm font-bold text-slate-950">
-                {confirmedOrderSubmissionCheck === 'reconciliation' ? '存在待核销费用' : '货物尚未到达海外仓'}
+                {confirmedOrderSubmissionCheck === 'reconciliation' ? '存在待核销费用' : '存在非放货下单类型'}
               </h3>
             </div>
             <div className="px-8 py-7 text-sm leading-6 text-slate-700">
               {confirmedOrderSubmissionCheck === 'reconciliation'
                 ? <>所选 {confirmedOrderSubmissionRows.length} 条运单中包含未核销或部分核销的指令费用。是否仍要下单？</>
-                : <>所选 {confirmedOrderSubmissionRows.length} 条运单中有货物尚未到达海外仓。继续下单将进入下单流程，是否仍要下单？</>}
+                : <>所选 {confirmedOrderSubmissionRows.length} 条运单中包含不放货或销毁类型。继续下单将进入下单流程，是否仍要下单？</>}
             </div>
             <div className="flex justify-end gap-3 px-8 pb-6">
               <button

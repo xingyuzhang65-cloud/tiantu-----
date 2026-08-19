@@ -125,11 +125,19 @@ const inquiryMenu = ['价格查询', '询价列表', '报价列表', '报价配�
 const tabs = ['运单', '指令管理', '创建客户指令', '海外暂存', '海外中转单', '404', '价格查询'];
 
 const inquiryListRows = [
-  { id: 'XJ2608170008', customer: '深圳天图电子有限公司', mode: '海运', service: '美国海卡', warehouse: '塘厦仓', destination: '美国 / Los Angeles', zip: '90001', goods: '家具配件', weight: '680', volume: '4.8', cabinet: '40HQ', addressType: '商业地址', customs: '是', tax: '否', targetPrice: '12.8/KG', cc: '天朗、天全', status: '待报价', creator: '天朗', createdAt: '2026-08-17 16:58:22' },
-  { id: 'XJ2608170007', customer: '上海豪迅美中快递中心', mode: '空运', service: '美国空派', warehouse: '广州仓', destination: '美国 / Chicago', zip: '60601', goods: '蓝牙耳机', weight: '132', volume: '1.1', cabinet: '-', addressType: '私人地址', customs: '否', tax: '是', targetPrice: '35.5/KG', cc: '天气、天明', status: '已报价', creator: '天全', createdAt: '2026-08-17 15:42:10' },
-  { id: 'XJ2608170006', customer: '常晟供应链集团', mode: '海运', service: '美国海派', warehouse: '义乌仓', destination: '美国 / Dallas', zip: '75201', goods: '厨房用品', weight: '420', volume: '3.2', cabinet: '20GP', addressType: '商业地址', customs: '是', tax: '是', targetPrice: '9.6/KG', cc: '天朗、天宇', status: '报价中', creator: '天气', createdAt: '2026-08-17 14:18:36' },
-  { id: 'XJ2608170005', customer: '深圳星链家居出口部', mode: '铁路', service: '美国海卡', warehouse: '塘厦仓', destination: '美国 / Seattle', zip: '98101', goods: '灯具', weight: '980', volume: '7.5', cabinet: '40GP', addressType: '亚马逊仓库', customs: '否', tax: '否', targetPrice: '11.2/KG', cc: '天成', status: '待报价', creator: '天明', createdAt: '2026-08-17 11:03:49' },
-  { id: 'XJ2608160012', customer: '东莞跨境贸易样品客户', mode: '卡航', service: '美国海派', warehouse: '广州仓', destination: '美国 / Phoenix', zip: '85043', goods: '汽配样品', weight: '76', volume: '0.6', cabinet: '-', addressType: '海外仓', customs: '是', tax: '否', targetPrice: '18.0/KG', cc: '天朗、天气', status: '已取消', creator: '天宇', createdAt: '2026-08-16 18:22:04' },
+  { id: 'XJ2608170008', customer: '深圳天图电子有限公司', customerGroupName: '-', mode: '海运', service: '美国海卡', warehouse: '塘厦仓', destination: '美国 / Los Angeles', zip: '90001', goods: '家具配件', weight: '680', volume: '4.8', cabinet: '40HQ', addressType: '商业地址', customs: '是', tax: '否', targetPrice: '12.8/KG', cc: '天朗、天全', status: '待报价', creator: '天朗', createdAt: '2026-08-17 16:58:22' },
+  { id: 'XJ2608170007', customer: '上海豪迅美中快递中心', customerGroupName: '-', mode: '空运', service: '美国空派', warehouse: '广州仓', destination: '美国 / Chicago', zip: '60601', goods: '蓝牙耳机', weight: '132', volume: '1.1', cabinet: '-', addressType: '私人地址', customs: '否', tax: '是', targetPrice: '35.5/KG', cc: '天气、天明', status: '已报价', creator: '天全', createdAt: '2026-08-17 15:42:10' },
+  { id: 'XJ2608170006', customer: '常晟供应链集团', customerGroupName: '-', mode: '海运', service: '美国海派', warehouse: '义乌仓', destination: '美国 / Dallas', zip: '75201', goods: '厨房用品', weight: '420', volume: '3.2', cabinet: '20GP', addressType: '商业地址', customs: '是', tax: '是', targetPrice: '9.6/KG', cc: '天朗、天宇', status: '报价中', creator: '天气', createdAt: '2026-08-17 14:18:36' },
+  { id: 'XJ2608170005', customer: '深圳星链家居出口部', customerGroupName: '-', mode: '铁路', service: '美国海卡', warehouse: '塘厦仓', destination: '美国 / Seattle', zip: '98101', goods: '灯具', weight: '980', volume: '7.5', cabinet: '40GP', addressType: '亚马逊仓库', customs: '否', tax: '否', targetPrice: '11.2/KG', cc: '天成', status: '待报价', creator: '天明', createdAt: '2026-08-17 11:03:49' },
+  { id: 'XJ2608170004', customer: '未开户询价', customerGroupName: '深圳华南跨境电商交流群', mode: '海运', service: '美国海卡', warehouse: '塘厦仓', destination: '美国 / New York', zip: '10001', goods: '家居收纳用品', weight: '520', volume: '3.9', cabinet: '20GP', addressType: '商业地址', customs: '是', tax: '否', targetPrice: '13.2/KG', cc: '天朗、天明', status: '待报价', creator: '天朗', createdAt: '2026-08-17 10:38:25' },
+  { id: 'XJ2608170003', customer: '未开户询价', customerGroupName: '广州服装出口资源群', mode: '空运', service: '美国空派', warehouse: '广州仓', destination: '美国 / Miami', zip: '33101', goods: '针织服装', weight: '185', volume: '1.4', cabinet: '-', addressType: '私人地址', customs: '否', tax: '是', targetPrice: '32.6/KG', cc: '天全、天气', status: '报价中', creator: '天全', createdAt: '2026-08-17 09:45:16' },
+  { id: 'XJ2608170002', customer: '未开户询价', customerGroupName: '义乌小商品美国专线群', mode: '海运', service: '美国海派', warehouse: '义乌仓', destination: '美国 / Houston', zip: '77001', goods: '节庆装饰品', weight: '860', volume: '6.2', cabinet: '40HQ', addressType: '海外仓', customs: '是', tax: '是', targetPrice: '10.5/KG', cc: '天成、天宇', status: '已报价', creator: '天成', createdAt: '2026-08-17 08:56:40' },
+  { id: 'XJ2608160015', customer: '未开户询价', customerGroupName: '宁波汽配物流交流一群', mode: '铁路', service: '美国海卡', warehouse: '义乌仓', destination: '美国 / Detroit', zip: '48201', goods: '汽车滤清器', weight: '1240', volume: '8.6', cabinet: '40GP', addressType: '商业地址', customs: '是', tax: '否', targetPrice: '11.8/KG', cc: '天朗、天成', status: '待报价', creator: '天明', createdAt: '2026-08-16 20:12:33' },
+  { id: 'XJ2608160012', customer: '未开户询价', customerGroupName: '东莞跨境贸易样品群', mode: '卡航', service: '美国海派', warehouse: '广州仓', destination: '美国 / Phoenix', zip: '85043', goods: '汽配样品', weight: '76', volume: '0.6', cabinet: '-', addressType: '海外仓', customs: '是', tax: '否', targetPrice: '18.0/KG', cc: '天朗、天气', status: '已取消', creator: '天宇', createdAt: '2026-08-16 18:22:04' },
+  { id: 'XJ2608160011', customer: '未开户询价', customerGroupName: '杭州智能家居出海群', mode: '空运', service: '美国空派', warehouse: '广州仓', destination: '美国 / San Francisco', zip: '94105', goods: '智能门锁', weight: '96', volume: '0.8', cabinet: '-', addressType: '亚马逊仓库', customs: '否', tax: '是', targetPrice: '36.8/KG', cc: '天气', status: '已报价', creator: '天气', createdAt: '2026-08-16 17:06:52' },
+  { id: 'XJ2608160010', customer: '未开户询价', customerGroupName: '厦门户外用品供应链群', mode: '海运', service: '美国海卡', warehouse: '塘厦仓', destination: '美国 / Portland', zip: '97201', goods: '露营桌椅', weight: '1480', volume: '11.2', cabinet: '40HQ', addressType: '海外仓', customs: '是', tax: '否', targetPrice: '9.9/KG', cc: '天朗、天宇', status: '报价中', creator: '天宇', createdAt: '2026-08-16 15:48:09' },
+  { id: 'XJ2608160009', customer: '未开户询价', customerGroupName: '佛山家具北美物流群', mode: '海运', service: '美国海派', warehouse: '广州仓', destination: '美国 / Atlanta', zip: '30301', goods: '餐厅家具', weight: '2260', volume: '16.8', cabinet: '40HQ', addressType: '商业地址', customs: '是', tax: '是', targetPrice: '8.7/KG', cc: '天全、天明', status: '待报价', creator: '天明', createdAt: '2026-08-16 14:32:18' },
+  { id: 'XJ2608150008', customer: '未开户询价', customerGroupName: '泉州鞋服跨境交流二群', mode: '卡航', service: '美国海派', warehouse: '义乌仓', destination: '美国 / Boston', zip: '02108', goods: '运动鞋服', weight: '340', volume: '2.7', cabinet: '-', addressType: '私人地址', customs: '否', tax: '否', targetPrice: '16.5/KG', cc: '天成', status: '已取消', creator: '天成', createdAt: '2026-08-15 19:26:44' },
 ];
 
 function TiantuLogo() {
@@ -161,20 +169,47 @@ function Watermarks() {
 }
 
 function InquiryListContent() {
-  const columns = ['询价编号', '客户', '运输模式', '服务名称', '拣货仓库', '目的地', '邮编', '产品信息', '总重量(KG)', '方数', '柜型', '地址类型', '客户报关', '包税', '目标价', '抄送人（报价结果）', '状态', '创建人', '创建时间', '操作'];
+  const [customerGroupKeyword, setCustomerGroupKeyword] = useState('');
+  const [appliedCustomerGroupKeyword, setAppliedCustomerGroupKeyword] = useState('');
+  const columns = ['询价编号', '客户', '客户群名称', '运输模式', '服务名称', '拣货仓库', '目的地', '邮编', '产品信息', '总重量(KG)', '方数', '柜型', '地址类型', '客户报关', '包税', '目标价', '抄送人（报价结果）', '状态', '创建人', '创建时间', '操作'];
+  const filteredRows = useMemo(() => {
+    const keyword = appliedCustomerGroupKeyword.trim().toLocaleLowerCase();
+    if (!keyword) return inquiryListRows;
+    return inquiryListRows.filter((row) => row.customerGroupName.toLocaleLowerCase().includes(keyword));
+  }, [appliedCustomerGroupKeyword]);
+
+  const searchCustomerGroup = () => setAppliedCustomerGroupKeyword(customerGroupKeyword.trim());
+  const resetFilters = () => {
+    setCustomerGroupKeyword('');
+    setAppliedCustomerGroupKeyword('');
+  };
 
   return (
     <>
       <section className="tiantu-list-panel">
         <div className="tiantu-list-filters">
           <Field label="询价编号" required={false} className="w-[255px]"><input className="tiantu-control" placeholder="请输入" /></Field>
-          <Field label="客户" required={false} className="w-[285px]"><Select placeholder="请选择" options={['深圳天图电子有限公司', '上海豪迅美中快递中心', '常晟供应链集团']} /></Field>
+          <Field label="客户" required={false} className="w-[285px]"><Select placeholder="请选择" options={['未开户询价', '深圳天图电子有限公司', '上海豪迅美中快递中心', '常晟供应链集团']} /></Field>
+          <Field label="客户群名称" required={false} className="w-[260px]">
+            <input
+              value={customerGroupKeyword}
+              className="tiantu-control"
+              placeholder="请输入客户群名称，支持模糊查询"
+              onChange={(event) => setCustomerGroupKeyword(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  searchCustomerGroup();
+                }
+              }}
+            />
+          </Field>
           <Field label="运输模式" required={false} className="w-[245px]"><Select placeholder="请选择运输模式" options={['海运', '空运', '铁路', '卡航']} /></Field>
           <Field label="状态" required={false} className="w-[230px]"><Select placeholder="请选择" options={['待报价', '报价中', '已报价', '已取消']} /></Field>
           <Field label="抄送人（报价结果）" required={false} className="tiantu-long-field tiantu-filter-cc"><Select placeholder="请选择" options={['天朗', '天全', '天气', '天明', '天成', '天宇']} /></Field>
           <div className="tiantu-filter-actions">
-            <button type="button" className="tiantu-action primary">查询</button>
-            <button type="button" className="tiantu-action">重置</button>
+            <button type="button" onClick={searchCustomerGroup} className="tiantu-action primary">查询</button>
+            <button type="button" onClick={resetFilters} className="tiantu-action">重置</button>
           </div>
         </div>
       </section>
@@ -190,10 +225,11 @@ function InquiryListContent() {
               <tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr>
             </thead>
             <tbody>
-              {inquiryListRows.map((row) => (
+              {filteredRows.map((row) => (
                 <tr key={row.id}>
                   <td className="font-medium text-[#0757b4]">{row.id}</td>
                   <td>{row.customer}</td>
+                  <td>{row.customerGroupName}</td>
                   <td>{row.mode}</td>
                   <td>{row.service}</td>
                   <td>{row.warehouse}</td>
@@ -214,11 +250,16 @@ function InquiryListContent() {
                   <td><button type="button" className="text-[#0757b4] hover:underline">查看</button></td>
                 </tr>
               ))}
+              {filteredRows.length === 0 && (
+                <tr>
+                  <td colSpan={columns.length} className="h-24 text-center text-[#8a96a5]">暂无匹配的询价记录</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
         <div className="tiantu-pagination">
-          <span>共 {inquiryListRows.length} 条</span>
+          <span>共 {filteredRows.length} 条</span>
           <button type="button">上一页</button>
           <strong>1</strong>
           <button type="button">下一页</button>
@@ -232,6 +273,8 @@ export default function PriceInquiryPage({ onNavigate, activeView = '价格查�
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileCount, setFileCount] = useState(0);
   const [liftGate, setLiftGate] = useState('');
+  const [customer, setCustomer] = useState('');
+  const [customerGroupName, setCustomerGroupName] = useState('');
   const [ccOpen, setCcOpen] = useState(false);
   const [ccUsers, setCcUsers] = useState<string[]>([]);
   const [notice, setNotice] = useState('');
@@ -378,8 +421,33 @@ export default function PriceInquiryPage({ onNavigate, activeView = '价格查�
 
                 <section className="tiantu-card mt-[14px] h-[108px]">
                   <h2>其他</h2>
-                  <div className="tiantu-other-grid">
-                    <Field label="客户" className="w-[245px]"><Select placeholder="请选择" options={['深圳天图电子有限公司', '上海豪迅美中快递中心', '常晟供应链集团']} /></Field>
+                  <div className={`tiantu-other-grid ${customer === '未开户询价' ? 'has-customer-group' : ''}`}>
+                    <Field label="客户" className="w-[245px]">
+                      <select
+                        value={customer}
+                        required
+                        className="tiantu-control"
+                        onChange={(event) => {
+                          const nextCustomer = event.target.value;
+                          setCustomer(nextCustomer);
+                          if (nextCustomer !== '未开户询价') setCustomerGroupName('');
+                        }}
+                      >
+                        <option value="" disabled>请选择</option>
+                        {['未开户询价', '深圳天图电子有限公司', '上海豪迅美中快递中心', '常晟供应链集团'].map((option) => <option key={option}>{option}</option>)}
+                      </select>
+                    </Field>
+                    {customer === '未开户询价' && (
+                      <Field label="客户群名称" className="w-[245px]">
+                        <input
+                          value={customerGroupName}
+                          required
+                          className="tiantu-control"
+                          placeholder="请输入客户群名称"
+                          onChange={(event) => setCustomerGroupName(event.target.value)}
+                        />
+                      </Field>
+                    )}
                     <Field label="抄送人（报价结果）" required={false} className="tiantu-long-field tiantu-other-cc">
                       <MultiSelect
                         placeholder="请选择"
@@ -444,8 +512,12 @@ export default function PriceInquiryPage({ onNavigate, activeView = '价格查�
           display: grid;
           grid-template-columns: 245px 360px 250px 330px;
           align-items: start;
-          gap: 54px;
+          gap: 40px;
           padding-left: 75px;
+        }
+        .tiantu-other-grid.has-customer-group {
+          grid-template-columns: 245px 245px 360px 250px 330px;
+          gap: 24px;
         }
         .tiantu-other-cc {
           width: 360px;
@@ -503,16 +575,19 @@ export default function PriceInquiryPage({ onNavigate, activeView = '价格查�
         }
         .tiantu-list-filters {
           display: grid;
-          grid-template-columns: 255px 285px 245px 230px 360px 1fr;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           align-items: flex-start;
           gap: 12px 18px;
           padding-left: 22px;
         }
+        .tiantu-list-filters .tiantu-field {
+          width: auto;
+        }
         .tiantu-filter-cc {
-          width: 360px;
+          width: auto;
         }
         .tiantu-filter-actions {
-          grid-column: 6;
+          grid-column: 3 / -1;
           display: flex;
           height: 27px;
           align-items: center;
