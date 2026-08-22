@@ -581,6 +581,7 @@ export default function App() {
                 sourceCode: customer.code,
                 companyName: customer.companyName,
                 businessRep: customer.businessRep,
+                merchandiser: customer.merchandiser,
               });
               setCurrentSubView('客户');
               setCurrentTab('客户');

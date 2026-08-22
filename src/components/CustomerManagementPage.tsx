@@ -23,8 +23,11 @@ interface CustomerContactRow {
 interface CustomerInquiryRecord {
   customerId: number;
   inquiryNo: string;
-  inquirer: string;
+  isQuoted: '是' | '否';
+  inquiryChannel: string;
   inquiryTime: string;
+  quoteTime: string;
+  quoteResult: string;
 }
 
 interface CustomerManagementPageProps {
@@ -38,6 +41,7 @@ export interface CustomerCreateSeed {
   sourceCode: string;
   companyName: string;
   businessRep: string;
+  merchandiser?: string;
 }
 
 interface CustomerRecord {
@@ -84,6 +88,8 @@ const salesNames = ['天佑（李云西）', '天全（张开泰）', '天睿（
 const intendedSalesNames = ['天期', '天金', '天成', '天宇', '天气', '天明'];
 const financeNames = ['天贵（郑嘉慧）', '天昊', '天姐', '天君', '天则', '天筹（潘书琴）'];
 const companies = ['青岛天图', '深圳天图', '上海天图', '中山天图', '东莞天图', '义乌天图', '厦门天图', '宁波天图'];
+const inquiryChannelOptions = ['微信询价', '电话询价', '邮件询价', '官网询价', '线下询价'];
+const quoteResultOptions = ['报价通过', '待确认', '已失效', '已成交'];
 
 const emptyCustomerDraft = {
   code: '', name: '', level: '', externalSettlement: '', internalSettlement: '', salesRep: '',
@@ -102,6 +108,7 @@ const buildCustomerDraft = (seed?: CustomerCreateSeed | null) => ({
     name: seed.companyName,
     legalName: seed.companyName,
     salesRep: seed.businessRep,
+    merchandiser: seed.merchandiser || '',
     remark: `由意向客户 ${seed.sourceCode} 发起开户`,
   } : {}),
 });
@@ -168,6 +175,11 @@ const formatDateTime = (date: Date) => {
   const pad = (value: number) => String(value).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 };
+const formatDatetimeLocal = (value: string) => {
+  if (!value) return '';
+  return value.replace(' ', 'T').slice(0, 16);
+};
+const formatLongTime = (value: string) => value ? value.replace('T', ' ').slice(0, 16) : '-';
 
 const initialCustomerInquiryRecords: CustomerInquiryRecord[] = initialCustomers.flatMap((customer, index) => {
   const count = index % 4 === 0 ? 0 : (index % 3) + 1;
@@ -176,11 +188,16 @@ const initialCustomerInquiryRecords: CustomerInquiryRecord[] = initialCustomers.
     const inquiryTime = new Date(baseTime);
     inquiryTime.setDate(baseTime.getDate() - itemIndex);
     inquiryTime.setMinutes(baseTime.getMinutes() - itemIndex * 17);
+    const quoted = itemIndex % 2 === 0 ? '是' : '否';
+    const quoteTime = quoted === '是' ? formatDateTime(new Date(inquiryTime.getTime() + 50 * 60000)) : '';
     return {
       customerId: customer.id,
       inquiryNo: `XJ${customer.code.replace(/\D/g, '').padStart(6, '0')}${String(count - itemIndex).padStart(3, '0')}`,
-      inquirer: customer.salesRep,
+      isQuoted: quoted,
+      inquiryChannel: inquiryChannelOptions[(customer.id + itemIndex) % inquiryChannelOptions.length],
       inquiryTime: formatDateTime(inquiryTime),
+      quoteTime,
+      quoteResult: quoted === '是' ? quoteResultOptions[(customer.id + itemIndex) % quoteResultOptions.length] : '',
     };
   });
 });
@@ -220,6 +237,10 @@ export default function CustomerManagementPage({ addToast, createSeed, onCreateS
   const [licenseName, setLicenseName] = useState('');
   const [inquiryRecords, setInquiryRecords] = useState<CustomerInquiryRecord[]>(initialCustomerInquiryRecords);
   const [manualInquiryNo, setManualInquiryNo] = useState('');
+  const [manualIsQuoted, setManualIsQuoted] = useState<'是' | '否'>('否');
+  const [manualInquiryChannel, setManualInquiryChannel] = useState(inquiryChannelOptions[0]);
+  const [manualQuoteTime, setManualQuoteTime] = useState('');
+  const [manualQuoteResult, setManualQuoteResult] = useState('');
   const handledSeedIdRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -273,6 +294,10 @@ export default function CustomerManagementPage({ addToast, createSeed, onCreateS
     setDrawerMode('create');
     setActiveCustomerId(null);
     setManualInquiryNo('');
+    setManualIsQuoted('否');
+    setManualInquiryChannel(inquiryChannelOptions[0]);
+    setManualQuoteTime('');
+    setManualQuoteResult('');
   };
 
   const openViewDrawer = (customer: CustomerRecord) => {
@@ -282,6 +307,10 @@ export default function CustomerManagementPage({ addToast, createSeed, onCreateS
     setContacts(customerContactsToDraft(customer));
     setLicenseName(customer.licenseName ?? '');
     setManualInquiryNo('');
+    setManualIsQuoted('否');
+    setManualInquiryChannel(inquiryChannelOptions[0]);
+    setManualQuoteTime('');
+    setManualQuoteResult('');
     setCreateOpen(true);
   };
 
@@ -292,6 +321,10 @@ export default function CustomerManagementPage({ addToast, createSeed, onCreateS
     setContacts(customerContactsToDraft(customer));
     setLicenseName(customer.licenseName ?? '');
     setManualInquiryNo('');
+    setManualIsQuoted('否');
+    setManualInquiryChannel(inquiryChannelOptions[0]);
+    setManualQuoteTime('');
+    setManualQuoteResult('');
     setCreateOpen(true);
   };
 
@@ -374,14 +407,22 @@ export default function CustomerManagementPage({ addToast, createSeed, onCreateS
     const inquiryNo = manualInquiryNo.trim();
     if (!inquiryNo) return addToast('请输入询价单号', 'warning');
     if (inquiryRecords.some((item) => item.inquiryNo.toLowerCase() === inquiryNo.toLowerCase())) return addToast('询价单号已存在', 'warning');
+    if (manualIsQuoted === '是' && !manualQuoteTime) return addToast('请选择报价时间', 'warning');
+    if (manualIsQuoted === '是' && !manualQuoteResult.trim()) return addToast('请选择报价结果', 'warning');
     const nextRecord: CustomerInquiryRecord = {
       customerId: activeCustomer.id,
       inquiryNo,
-      inquirer: draft.salesRep || activeCustomer.salesRep,
+      isQuoted: manualIsQuoted,
+      inquiryChannel: manualInquiryChannel,
       inquiryTime: formatDateTime(new Date()),
+      quoteTime: manualIsQuoted === '是' ? formatLongTime(manualQuoteTime) + ':00' : '',
+      quoteResult: manualIsQuoted === '是' ? manualQuoteResult.trim() : '',
     };
     setInquiryRecords((current) => [nextRecord, ...current]);
     setManualInquiryNo('');
+    setManualIsQuoted('否');
+    setManualQuoteTime('');
+    setManualQuoteResult('');
     addToast(`询价单 ${inquiryNo} 已加入当前客户`, 'success');
   };
 
@@ -543,18 +584,22 @@ export default function CustomerManagementPage({ addToast, createSeed, onCreateS
                   <b className='text-slate-700'>{activeCustomer?.name || draft.name}</b>
                   <span className='ml-2 font-mono text-slate-400'>{activeCustomer?.code || draft.code}</span>
                 </div>
-                {drawerMode === 'edit' && <div className='flex items-center gap-2 rounded-sm border border-blue-100 bg-blue-50/60 p-3'>
-                  <input value={manualInquiryNo} onChange={(event) => setManualInquiryNo(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && addManualInquiryRecord()} className={inputClass + ' flex-1 bg-white'} placeholder='请输入询价单号'/>
-                  <button onClick={addManualInquiryRecord} className={primaryButton}><Plus className='h-3.5 w-3.5'/>加入当前客户</button>
+                {drawerMode === 'edit' && <div className='grid grid-cols-2 gap-3 rounded-sm border border-blue-100 bg-blue-50/60 p-3'>
+                  <label className='text-[11px] text-slate-600'>询价单号<input value={manualInquiryNo} onChange={(event) => setManualInquiryNo(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && addManualInquiryRecord()} className={inputClass + ' mt-1 bg-white'} placeholder='请输入询价单号'/></label>
+                  <label className='text-[11px] text-slate-600'>询价渠道<select value={manualInquiryChannel} onChange={(event) => setManualInquiryChannel(event.target.value)} className={inputClass + ' mt-1 bg-white'}>{inquiryChannelOptions.map((channel) => <option key={channel}>{channel}</option>)}</select></label>
+                  <label className='text-[11px] text-slate-600'>是否已报价<select value={manualIsQuoted} onChange={(event) => { const value = event.target.value as '是' | '否'; setManualIsQuoted(value); if (value === '否') { setManualQuoteTime(''); setManualQuoteResult(''); } else if (!manualQuoteTime) setManualQuoteTime(formatDatetimeLocal(formatDateTime(new Date()))); }} className={inputClass + ' mt-1 bg-white'}><option>否</option><option>是</option></select></label>
+                  <label className='text-[11px] text-slate-600'>报价时间<input type='datetime-local' disabled={manualIsQuoted === '否'} value={manualQuoteTime} onChange={(event) => setManualQuoteTime(event.target.value)} className={inputClass + ' mt-1 bg-white disabled:bg-slate-100 disabled:text-slate-400'}/></label>
+                  <label className='text-[11px] text-slate-600'>报价结果<select disabled={manualIsQuoted === '否'} value={manualQuoteResult} onChange={(event) => setManualQuoteResult(event.target.value)} className={inputClass + ' mt-1 bg-white disabled:bg-slate-100 disabled:text-slate-400'}><option value=''>请选择报价结果</option>{quoteResultOptions.map((result) => <option key={result}>{result}</option>)}</select></label>
+                  <div className='flex items-end justify-end'><button onClick={addManualInquiryRecord} className={primaryButton}><Plus className='h-3.5 w-3.5'/>加入当前客户</button></div>
                 </div>}
                 <div className='overflow-hidden rounded-sm border border-slate-200'>
-                  <table className='w-full table-fixed text-left text-[11px]'>
+                  <table className='w-full min-w-[760px] table-fixed text-left text-[11px]'>
                     <thead className='bg-slate-50 text-slate-500'>
-                      <tr>{['询价号','询价人','询价时间'].map((heading) => <th key={heading} className='border-b border-slate-200 px-3 py-2 font-medium'>{heading}</th>)}</tr>
+                      <tr>{['询价号','是否已报价','询价渠道','询价时间','报价时间','报价结果'].map((heading) => <th key={heading} className='border-b border-slate-200 px-3 py-2 font-medium'>{heading}</th>)}</tr>
                     </thead>
                     <tbody className='divide-y divide-slate-100'>
-                      {inquiryItems.map((item) => <tr key={item.inquiryNo}><td className='px-3 py-2 font-mono text-blue-600'>{item.inquiryNo}</td><td className='px-3 py-2 text-slate-700'>{item.inquirer}</td><td className='px-3 py-2 text-slate-500'>{item.inquiryTime}</td></tr>)}
-                      {!inquiryItems.length && <tr><td colSpan={3} className='py-10 text-center text-xs text-slate-400'>暂无询价记录</td></tr>}
+                      {inquiryItems.map((item) => <tr key={item.inquiryNo}><td className='px-3 py-2 font-mono text-blue-600'>{item.inquiryNo}</td><td className='px-3 py-2 text-slate-700'>{item.isQuoted}</td><td className='px-3 py-2 text-slate-700'>{item.inquiryChannel}</td><td className='px-3 py-2 text-slate-500'>{item.inquiryTime}</td><td className='px-3 py-2 text-slate-500'>{item.quoteTime || '-'}</td><td className='px-3 py-2 text-slate-700'>{item.quoteResult || '-'}</td></tr>)}
+                      {!inquiryItems.length && <tr><td colSpan={6} className='py-10 text-center text-xs text-slate-400'>暂无询价记录</td></tr>}
                     </tbody>
                   </table>
                 </div>
