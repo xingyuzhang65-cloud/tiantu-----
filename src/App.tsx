@@ -11,6 +11,8 @@ import WarehouseShipmentPage from './components/WarehouseShipmentPage';
 import OverseasTransitOrderPage from './components/OverseasTransitOrderPage';
 import ExpressOrderPage from './components/ExpressOrderPage';
 import UserManagementPage from './components/UserManagementPage';
+import CustomerManagementPage, { type CustomerCreateSeed } from './components/CustomerManagementPage';
+import IntendedCustomerPage from './components/IntendedCustomerPage';
 import MarketingDashboardPage from './components/MarketingDashboardPage';
 import PriceInquiryPage from './components/PriceInquiryPage';
 import { Waybill, OrderType, WaybillChangeLog } from './types';
@@ -22,6 +24,7 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<string>('运单');
   const [currentSubView, setCurrentSubView] = useState<string>('运单');
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>('塘厦仓');
+  const [customerCreateSeed, setCustomerCreateSeed] = useState<CustomerCreateSeed | null>(null);
 
   // Keep the waybill list as the default landing view after refresh.
   const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
@@ -569,6 +572,28 @@ export default function App() {
           <OverseasTransitPage addToast={addToast} initialView="list" />
         ) : currentTab === '中转出库' || currentTab === '仓库概览' || currentTab === '中转入库' ? (
           <WarehouseTransitOutPage addToast={addToast} />
+        ) : currentTab === '意向客户' ? (
+          <IntendedCustomerPage
+            addToast={addToast}
+            onStartOpening={(customer) => {
+              setCustomerCreateSeed({
+                requestId: Date.now(),
+                sourceCode: customer.code,
+                companyName: customer.companyName,
+                businessRep: customer.businessRep,
+              });
+              setCurrentSubView('客户');
+              setCurrentTab('客户');
+              setOpenTabs((tabs) => tabs.includes('客户') ? tabs : [...tabs, '客户']);
+              addToast(`已从 ${customer.code} 发起开户，请完善客户资料`, 'info');
+            }}
+          />
+        ) : currentTab === '客户' ? (
+          <CustomerManagementPage
+            addToast={addToast}
+            createSeed={customerCreateSeed}
+            onCreateSeedHandled={() => setCustomerCreateSeed(null)}
+          />
         ) : currentTab === '用户' ? (
           <UserManagementPage addToast={addToast} />
         ) : currentTab === '营销数据看板' ? (

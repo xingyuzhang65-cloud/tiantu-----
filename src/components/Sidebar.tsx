@@ -4,7 +4,7 @@ import {
   MessageSquareCode, BarChart3, Settings, Users,
   DownloadCloud, Cpu, Megaphone, ChevronDown, ChevronRight,
   TrendingUp, ArrowRightLeft, Layers, Wrench, Printer, Package,
-  PackageOpen, SlidersHorizontal, UserCog, KeyRound
+  PackageOpen, SlidersHorizontal, UserCog, KeyRound, UserPlus
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -62,7 +62,7 @@ export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProp
                     onSubViewChange('贸易方式配置');
                   }
                   if (item.name === '管理') {
-                    onSubViewChange('用户');
+                    onSubViewChange('客户');
                   }
                   if (item.name === '营销') {
                     onSubViewChange('营销数据看板');
@@ -425,6 +425,12 @@ export default function Sidebar({ currentSubView, onSubViewChange }: SidebarProp
                 {accountSettingsExpanded ? <ChevronDown className='h-3 w-3'/> : <ChevronRight className='h-3 w-3'/>}
               </button>
               {accountSettingsExpanded && <div className='ml-4 space-y-0.5 border-l border-slate-200 pl-2'>
+                <button id='submenu-item-意向客户' onClick={() => onSubViewChange('意向客户')} className={`flex w-full items-center gap-2 rounded px-3 py-1.5 text-xs transition-colors ${currentSubView === '意向客户' ? 'bg-blue-50 font-semibold text-blue-600' : 'text-slate-600 hover:bg-slate-200/50'}`}>
+                  <UserPlus className='h-3.5 w-3.5'/><span>意向客户</span>
+                </button>
+                <button id='submenu-item-客户' onClick={() => onSubViewChange('客户')} className={`flex w-full items-center gap-2 rounded px-3 py-1.5 text-xs transition-colors ${currentSubView === '客户' ? 'bg-blue-50 font-semibold text-blue-600' : 'text-slate-600 hover:bg-slate-200/50'}`}>
+                  <Users className='h-3.5 w-3.5'/><span>客户</span>
+                </button>
                 <button id='submenu-item-用户' onClick={() => onSubViewChange('用户')} className={`flex w-full items-center gap-2 rounded px-3 py-1.5 text-xs transition-colors ${currentSubView === '用户' ? 'bg-blue-50 font-semibold text-blue-600' : 'text-slate-600 hover:bg-slate-200/50'}`}>
                   <UserCog className='h-3.5 w-3.5'/><span>用户</span>
                 </button>
