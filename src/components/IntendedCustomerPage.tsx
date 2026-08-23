@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Building2, Clock3, Download, Edit3, FileClock, Plus, Search, Settings, X } from 'lucide-react';
+import InquiryQuoteResult, { CANADA_EAST_QUOTE_RESULT } from './InquiryQuoteResult';
 
 type ToastType = 'success' | 'info' | 'warning';
 type ModalType = 'inquiry' | 'edit';
@@ -59,7 +60,6 @@ interface InquiryRecord {
 const businessRepOptions = ['天期', '天金', '天成', '天宇', '天气', '天明'];
 const merchandiserOptions = ['天睿', '天全', '天旺', '天朗'];
 const inquiryChannelOptions = ['微信询价', '电话询价', '邮件询价', '官网询价', '线下询价'];
-const quoteResultOptions = ['报价通过', '待确认', '已失效', '已成交'];
 
 const seedCustomers: IntendedCustomer[] = [
   { id: 1, code: 'SZ003758', companyName: '深圳华南跨境有限公司', businessRep: '天期', merchandiser: '天睿', inquiryCount: 3, lastInquiryAt: '2026-08-20 16:35:00', createdAt: '2026-08-18 09:24:12', creator: '天朗' },
@@ -77,7 +77,6 @@ const emptyCustomerDraft: IntendedCustomerDraft = { companyName: '', businessRep
 
 const formatInquiryTime = (value: string) => value && value.length >= 16 ? value.slice(5, 16) : value || '-';
 const formatCreatedTime = (value: string) => value && value.length >= 10 ? value.slice(5, 10) : value || '-';
-const formatLongTime = (value: string) => value ? value.replace('T', ' ').slice(0, 16) : '-';
 const nextCustomerCode = (customers: IntendedCustomer[]) => `SZ${String(Math.max(3757, ...customers.map((item) => Number(item.code.replace(/\D/g, '')) || 0)) + 1).padStart(6, '0')}`;
 const escapeCsvValue = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
 const formatDateTime = (date: Date) => {
@@ -88,10 +87,6 @@ const toTimestamp = (value: string) => {
   if (!value) return null;
   const timestamp = new Date(value.replace(' ', 'T')).getTime();
   return Number.isNaN(timestamp) ? null : timestamp;
-};
-const formatDatetimeLocal = (value: string) => {
-  if (!value) return '';
-  return value.replace(' ', 'T').slice(0, 16);
 };
 
 const buildInquiryRecords = (customer: IntendedCustomer): InquiryRecord[] => {
@@ -111,7 +106,7 @@ const buildInquiryRecords = (customer: IntendedCustomer): InquiryRecord[] => {
       inquiryChannel: inquiryChannelOptions[(customer.id + index) % inquiryChannelOptions.length],
       inquiryTime: formatDateTime(inquiryTime),
       quoteTime,
-      quoteResult: quoted === '是' ? quoteResultOptions[(customer.id + index) % quoteResultOptions.length] : '',
+      quoteResult: quoted === '是' ? CANADA_EAST_QUOTE_RESULT : '',
     };
   });
 };
@@ -154,12 +149,7 @@ export default function IntendedCustomerPage({ addToast, onStartOpening }: Inten
   const [createDraft, setCreateDraft] = useState<IntendedCustomerDraft>(emptyCustomerDraft);
   const [pageLogOpen, setPageLogOpen] = useState(false);
   const [operationLogs, setOperationLogs] = useState<OperationLog[]>(initialOperationLogs);
-  const [inquiryRecords, setInquiryRecords] = useState<InquiryRecord[]>(initialInquiryRecords);
-  const [manualInquiryNo, setManualInquiryNo] = useState('');
-  const [manualIsQuoted, setManualIsQuoted] = useState<'是' | '否'>('否');
-  const [manualInquiryChannel, setManualInquiryChannel] = useState(inquiryChannelOptions[0]);
-  const [manualQuoteTime, setManualQuoteTime] = useState('');
-  const [manualQuoteResult, setManualQuoteResult] = useState('');
+  const [inquiryRecords] = useState<InquiryRecord[]>(initialInquiryRecords);
 
   const rows = useMemo(() => {
     const codeValue = filters.code.trim().toLowerCase();
@@ -216,11 +206,6 @@ export default function IntendedCustomerPage({ addToast, onStartOpening }: Inten
   const showModal = (customer: IntendedCustomer, type: ModalType) => {
     setActiveCustomer(customer);
     setModal(type);
-    setManualInquiryNo('');
-    setManualIsQuoted('否');
-    setManualInquiryChannel(inquiryChannelOptions[0]);
-    setManualQuoteTime('');
-    setManualQuoteResult('');
     if (type === 'edit') setEditDraft({ ...customer });
   };
 
@@ -228,11 +213,6 @@ export default function IntendedCustomerPage({ addToast, onStartOpening }: Inten
     setModal(null);
     setActiveCustomer(null);
     setEditDraft(null);
-    setManualInquiryNo('');
-    setManualIsQuoted('否');
-    setManualInquiryChannel(inquiryChannelOptions[0]);
-    setManualQuoteTime('');
-    setManualQuoteResult('');
   };
 
   const closeCreate = () => {
@@ -242,7 +222,7 @@ export default function IntendedCustomerPage({ addToast, onStartOpening }: Inten
 
   const exportRows = () => {
     const csv = [
-      ['客户编码', '公司名称', '业务代表', '跟单代表', '询价单号', '最近询价渠道', '最近询价时间', '询价次数', '创建时间', '创建人'].map(escapeCsvValue).join(','),
+      ['客户编码', '公司名称', '业务代表', '跟单代表', '询价单号', '询价渠道', '最近询价时间', '询价次数', '创建时间', '创建人'].map(escapeCsvValue).join(','),
       ...rows.map((row) => {
         const latestInquiry = getLatestInquiryRecord(inquiryRecords, row.id);
         return [
@@ -306,34 +286,6 @@ export default function IntendedCustomerPage({ addToast, onStartOpening }: Inten
     addOperationLog('编辑', `编辑意向客户 ${editDraft.code}（${editDraft.companyName.trim()}）`);
     addToast('意向客户信息已更新', 'success');
     closeModal();
-  };
-
-  const addManualInquiryRecord = () => {
-    if (!activeCustomer) return;
-    const inquiryNo = manualInquiryNo.trim();
-    if (!inquiryNo) return addToast('请输入询价单号', 'warning');
-    if (inquiryRecords.some((item) => item.inquiryNo.toLowerCase() === inquiryNo.toLowerCase())) return addToast('询价单号已存在', 'warning');
-    if (manualIsQuoted === '是' && !manualQuoteTime) return addToast('请选择报价时间', 'warning');
-    if (manualIsQuoted === '是' && !manualQuoteResult.trim()) return addToast('请选择报价结果', 'warning');
-    const inquiryTime = formatDateTime(new Date());
-    const nextRecord: InquiryRecord = {
-      customerId: activeCustomer.id,
-      inquiryNo,
-      isQuoted: manualIsQuoted,
-      inquiryChannel: manualInquiryChannel,
-      inquiryTime,
-      quoteTime: manualIsQuoted === '是' ? formatLongTime(manualQuoteTime) + ':00' : '',
-      quoteResult: manualIsQuoted === '是' ? manualQuoteResult.trim() : '',
-    };
-    setInquiryRecords((current) => [nextRecord, ...current]);
-    setCustomers((current) => current.map((item) => item.id === activeCustomer.id ? { ...item, inquiryCount: item.inquiryCount + 1, lastInquiryAt: inquiryTime } : item));
-    setActiveCustomer((current) => current ? { ...current, inquiryCount: current.inquiryCount + 1, lastInquiryAt: inquiryTime } : current);
-    setManualInquiryNo('');
-    setManualIsQuoted('否');
-    setManualQuoteTime('');
-    setManualQuoteResult('');
-    addOperationLog('录入询价', `为意向客户 ${activeCustomer.code} 录入询价单 ${inquiryNo}（${manualInquiryChannel}）`);
-    addToast(`询价单 ${inquiryNo} 已加入当前意向客户`, 'success');
   };
 
   const renderActions = (customer: IntendedCustomer) => (
@@ -442,7 +394,7 @@ export default function IntendedCustomerPage({ addToast, onStartOpening }: Inten
           <table className='w-full min-w-[1320px] text-left text-xs'>
             <thead className='sticky top-0 z-10 bg-slate-50 text-slate-500'>
               <tr>
-                {['客户编码', '公司名称', '业务代表', '跟单代表', '询价单号', '最近询价渠道', '最近询价时间', '询价次数', '创建时间', '创建人', '操作'].map((heading) => (
+                {['客户编码', '公司名称', '业务代表', '跟单代表', '询价单号', '询价渠道', '最近询价时间', '询价次数', '创建时间', '创建人', '操作'].map((heading) => (
                   <th key={heading} className='whitespace-nowrap border-b border-slate-200 px-4 py-3 font-medium'>{heading}</th>
                 ))}
               </tr>
@@ -513,55 +465,29 @@ export default function IntendedCustomerPage({ addToast, onStartOpening }: Inten
 
       {modal && activeCustomer && (
         <div className='fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4' onMouseDown={(event) => event.target === event.currentTarget && closeModal()}>
-          <div className='w-full max-w-lg overflow-hidden rounded-lg bg-white shadow-2xl'>
+          <div className={`max-h-[90vh] w-full ${modal === 'inquiry' ? 'max-w-5xl' : 'max-w-lg'} overflow-hidden rounded-lg bg-white shadow-2xl`}>
             <div className='flex items-center justify-between border-b border-slate-100 px-5 py-3'>
               <h3 className='text-sm font-semibold text-slate-800'>{modal === 'inquiry' ? '询价记录' : '编辑意向客户'}</h3>
               <button onClick={closeModal} className='text-slate-400 hover:text-slate-600'><X className='h-4 w-4' /></button>
             </div>
             {modal === 'inquiry' && (
-              <div className='space-y-3 p-5'>
+              <div className='max-h-[calc(90vh-50px)] space-y-3 overflow-y-auto p-5'>
                 <div className='rounded bg-slate-50 p-3 text-xs'>
                   <b className='text-slate-700'>{activeCustomer.companyName}</b>
                   <span className='ml-2 text-slate-400'>{activeCustomer.code}</span>
                 </div>
-                <div className='grid grid-cols-2 gap-3 rounded border border-blue-100 bg-blue-50/60 p-3'>
-                  <label className='text-xs text-slate-600'>
-                    询价单号
-                    <input value={manualInquiryNo} onChange={(event) => setManualInquiryNo(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && addManualInquiryRecord()} className={inputClass + ' mt-1 w-full bg-white'} placeholder='请输入询价单号' />
-                  </label>
-                  <label className='text-xs text-slate-600'>
-                    询价渠道
-                    <select value={manualInquiryChannel} onChange={(event) => setManualInquiryChannel(event.target.value)} className={inputClass + ' mt-1 w-full bg-white'}>
-                      {inquiryChannelOptions.map((channel) => <option key={channel}>{channel}</option>)}
-                    </select>
-                  </label>
-                  <label className='text-xs text-slate-600'>
-                    是否已报价
-                    <select value={manualIsQuoted} onChange={(event) => { const value = event.target.value as '是' | '否'; setManualIsQuoted(value); if (value === '否') { setManualQuoteTime(''); setManualQuoteResult(''); } else if (!manualQuoteTime) setManualQuoteTime(formatDatetimeLocal(formatDateTime(new Date()))); }} className={inputClass + ' mt-1 w-full bg-white'}>
-                      <option>否</option>
-                      <option>是</option>
-                    </select>
-                  </label>
-                  <label className='text-xs text-slate-600'>
-                    报价时间
-                    <input type='datetime-local' disabled={manualIsQuoted === '否'} value={manualQuoteTime} onChange={(event) => setManualQuoteTime(event.target.value)} className={inputClass + ' mt-1 w-full bg-white disabled:bg-slate-100 disabled:text-slate-400'} />
-                  </label>
-                  <label className='text-xs text-slate-600'>
-                    报价结果
-                    <select disabled={manualIsQuoted === '否'} value={manualQuoteResult} onChange={(event) => setManualQuoteResult(event.target.value)} className={inputClass + ' mt-1 w-full bg-white disabled:bg-slate-100 disabled:text-slate-400'}>
-                      <option value=''>请选择报价结果</option>
-                      {quoteResultOptions.map((result) => <option key={result}>{result}</option>)}
-                    </select>
-                  </label>
-                  <div className='flex items-end justify-end'>
-                    <button onClick={addManualInquiryRecord} className={primaryButton}><Plus className='h-3.5 w-3.5' />加入当前客户</button>
-                  </div>
-                </div>
-                <div className='overflow-hidden rounded border border-slate-200'>
-                  <table className='w-full min-w-[760px] text-left text-xs'>
+                <div className='overflow-x-auto rounded border border-slate-200'>
+                  <table className='w-full min-w-[940px] table-fixed text-left text-xs'>
+                    <colgroup>
+                      <col className='w-[155px]' />
+                      <col className='w-[105px]' />
+                      <col className='w-[95px]' />
+                      <col className='w-[165px]' />
+                      <col className='w-[420px]' />
+                    </colgroup>
                     <thead className='bg-slate-50 text-slate-500'>
                       <tr>
-                        {['询价号', '是否已报价', '询价渠道', '询价时间', '报价时间', '报价结果'].map((heading) => (
+                        {['询价单号', '询价渠道', '是否已报价', '报价时间', '报价结果'].map((heading) => (
                           <th key={heading} className='border-b border-slate-200 px-3 py-2 font-medium'>{heading}</th>
                         ))}
                       </tr>
@@ -570,14 +496,13 @@ export default function IntendedCustomerPage({ addToast, onStartOpening }: Inten
                       {inquiryItems.map((item) => (
                         <tr key={item.inquiryNo}>
                           <td className='px-3 py-2 font-mono text-blue-600'>{item.inquiryNo}</td>
-                          <td className='px-3 py-2 text-slate-700'>{item.isQuoted}</td>
                           <td className='px-3 py-2 text-slate-700'>{item.inquiryChannel}</td>
-                          <td className='px-3 py-2 text-slate-500'>{item.inquiryTime}</td>
+                          <td className='px-3 py-2 text-slate-700'>{item.isQuoted}</td>
                           <td className='px-3 py-2 text-slate-500'>{item.quoteTime || '-'}</td>
-                          <td className='px-3 py-2 text-slate-700'>{item.quoteResult || '-'}</td>
+                          <td className='min-w-0 px-3 py-2 text-slate-700'><InquiryQuoteResult value={item.quoteResult} /></td>
                         </tr>
                       ))}
-                      {!inquiryItems.length && <tr><td colSpan={6} className='py-10 text-center text-xs text-slate-400'>暂无询价记录</td></tr>}
+                      {!inquiryItems.length && <tr><td colSpan={5} className='py-10 text-center text-xs text-slate-400'>暂无询价记录</td></tr>}
                     </tbody>
                   </table>
                 </div>
